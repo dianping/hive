@@ -198,7 +198,15 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
       final Formatter fmt = auditFormatter.get();
       ((StringBuilder) fmt.out()).setLength(0);
-      auditLog.info(fmt.format(AUDIT_FORMAT, ugi.getUserName(),
+
+      HiveConf hiveConf = new HiveConf(HiveMetaStore.class);
+      String userName = "";
+      try {
+        userName = hiveConf.getUser();
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }
+      auditLog.info(fmt.format(AUDIT_FORMAT, userName,
           saslServer.getRemoteAddress().toString(), cmd).toString());
     }
 

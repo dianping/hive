@@ -1,0 +1,219 @@
+diff --git a/ql/src/java/org/apache/hadoop/hive/ql/Driver.java b/ql/src/java/org/apache/hadoop/hive/ql/Driver.java
+index 8da778f..e1ec86a 100644
+--- a/ql/src/java/org/apache/hadoop/hive/ql/Driver.java
++++ b/ql/src/java/org/apache/hadoop/hive/ql/Driver.java
+@@ -69,8 +69,8 @@
+ import org.apache.hadoop.hive.ql.lockmgr.HiveLockMode;
+ import org.apache.hadoop.hive.ql.lockmgr.HiveLockObj;
+ import org.apache.hadoop.hive.ql.lockmgr.HiveLockObject;
+-import org.apache.hadoop.hive.ql.lockmgr.LockException;
+ import org.apache.hadoop.hive.ql.lockmgr.HiveLockObject.HiveLockObjectData;
++import org.apache.hadoop.hive.ql.lockmgr.LockException;
+ import org.apache.hadoop.hive.ql.log.PerfLogger;
+ import org.apache.hadoop.hive.ql.metadata.AuthorizationException;
+ import org.apache.hadoop.hive.ql.metadata.DummyPartition;
+@@ -543,6 +543,17 @@
+           }
+         }
+       }
++
++      if (op.equals(HiveOperation.GRANT_PRIVILEGE) ||
++          op.equals(HiveOperation.REVOKE_PRIVILEGE) ||
++          op.equals(HiveOperation.CREATEROLE) ||
++          op.equals(HiveOperation.DROPROLE) ||
++          op.equals(HiveOperation.GRANT_ROLE) ||
++          op.equals(HiveOperation.REVOKE_ROLE)){
++        ss.getAuthorizer().authorize(
++            op.getInputRequiredPrivileges(), op.getOutputRequiredPrivileges());
++      }
++
+       if (outputs != null && outputs.size() > 0) {
+         for (WriteEntity write : outputs) {
+ 
+diff --git a/ql/src/java/org/apache/hadoop/hive/ql/plan/HiveOperation.java b/ql/src/java/org/apache/hadoop/hive/ql/plan/HiveOperation.java
+index 053e184..a5ec421 100644
+--- a/ql/src/java/org/apache/hadoop/hive/ql/plan/HiveOperation.java
++++ b/ql/src/java/org/apache/hadoop/hive/ql/plan/HiveOperation.java
+@@ -66,13 +66,13 @@
+   ALTERVIEW_PROPERTIES("ALTERVIEW_PROPERTIES", null, null),
+   LOCKTABLE("LOCKTABLE",  new Privilege[]{Privilege.LOCK}, null),
+   UNLOCKTABLE("UNLOCKTABLE",  new Privilege[]{Privilege.LOCK}, null),
+-  CREATEROLE("CREATEROLE", null, null),
+-  DROPROLE("DROPROLE", null, null),
+-  GRANT_PRIVILEGE("GRANT_PRIVILEGE", null, null),
+-  REVOKE_PRIVILEGE("REVOKE_PRIVILEGE", null, null),
++  CREATEROLE("CREATEROLE", new Privilege[]{Privilege.GRANT}, null),
++  DROPROLE("DROPROLE", new Privilege[]{Privilege.GRANT}, null),
++  GRANT_PRIVILEGE("GRANT_PRIVILEGE", new Privilege[]{Privilege.GRANT}, null),
++  REVOKE_PRIVILEGE("REVOKE_PRIVILEGE", new Privilege[]{Privilege.GRANT}, null),
+   SHOW_GRANT("SHOW_GRANT", null, null),
+-  GRANT_ROLE("GRANT_ROLE", null, null),
+-  REVOKE_ROLE("REVOKE_ROLE", null, null),
++  GRANT_ROLE("GRANT_ROLE", new Privilege[]{Privilege.GRANT}, null),
++  REVOKE_ROLE("REVOKE_ROLE", new Privilege[]{Privilege.GRANT}, null),
+   SHOW_ROLE_GRANT("SHOW_ROLE_GRANT", null, null),
+   ALTERTABLE_PROTECTMODE("ALTERTABLE_PROTECTMODE", new Privilege[]{Privilege.ALTER_METADATA}, null),
+   ALTERPARTITION_PROTECTMODE("ALTERPARTITION_PROTECTMODE", new Privilege[]{Privilege.ALTER_METADATA}, null),
+diff --git a/ql/src/java/org/apache/hadoop/hive/ql/processors/SetProcessor.java b/ql/src/java/org/apache/hadoop/hive/ql/processors/SetProcessor.java
+index 675a8b6..b78a937 100644
+--- a/ql/src/java/org/apache/hadoop/hive/ql/processors/SetProcessor.java
++++ b/ql/src/java/org/apache/hadoop/hive/ql/processors/SetProcessor.java
+@@ -22,11 +22,15 @@
+ import static org.apache.hadoop.hive.serde.Constants.STRING_TYPE_NAME;
+ import static org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe.defaultNullString;
+ 
++import java.util.Collections;
++import java.util.HashSet;
+ import java.util.Map;
+ import java.util.Properties;
++import java.util.Set;
+ import java.util.SortedMap;
+ import java.util.TreeMap;
+ 
++import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+ import org.apache.hadoop.hive.metastore.api.FieldSchema;
+ import org.apache.hadoop.hive.metastore.api.Schema;
+ import org.apache.hadoop.hive.ql.parse.VariableSubstitution;
+@@ -44,6 +48,20 @@
+   public static final String HIVECONF_PREFIX = "hiveconf:";
+   public static final String HIVEVAR_PREFIX = "hivevar:";
+   public static final String SET_COLUMN_NAME = "set";
++  private static Set<String> hiveConfSetBlackList;
++
++  static{
++    Set<String> set = new HashSet<String>();
++    set.add(ConfVars.HIVE_USE_SHORT_USER_NAME.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_ENABLED.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_MANAGER.varname);
++    set.add(ConfVars.HIVE_AUTHENTICATOR_MANAGER.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_GROUP_GRANTS.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_OWNER_GRANTS.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_ROLE_GRANTS.varname);
++    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_USER_GRANTS.varname);
++    hiveConfSetBlackList = Collections.unmodifiableSet(set);
++  }
+ 
+   public static boolean getBoolean(String value) {
+     if (value.equals("on") || value.equals("true")) {
+@@ -111,9 +129,7 @@
+       System.getProperties().setProperty(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
+       return new CommandProcessorResponse(0);
+     } else if (varname.startsWith(SetProcessor.HIVECONF_PREFIX)){
+-      String propName = varname.substring(SetProcessor.HIVECONF_PREFIX.length());
+-      ss.getConf().set(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
+-      return new CommandProcessorResponse(0);
++      return setHiveConf(ss, varname, varvalue);
+     } else if (varname.startsWith(SetProcessor.HIVEVAR_PREFIX)) {
+       String propName = varname.substring(SetProcessor.HIVEVAR_PREFIX.length());
+       ss.getHiveVariables().put(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
+@@ -126,6 +142,17 @@
+     }
+   }
+ 
++
++  private CommandProcessorResponse setHiveConf(SessionState ss, String varname, String varvalue){
++    if(hiveConfSetBlackList.contains(varname)){
++      ss.err.println(varname + " is not allowed to be set in hive command.");
++      return new CommandProcessorResponse(1);
++    }else{
++      ss.getConf().set(varname, new VariableSubstitution().substitute(ss.getConf(),varvalue) );
++      return new CommandProcessorResponse(0);
++    }
++  }
++
+   private SortedMap<String,String> propertiesToSortedMap(Properties p){
+     SortedMap<String,String> sortedPropMap = new TreeMap<String,String>();
+     for (Map.Entry<Object, Object> entry :System.getProperties().entrySet() ){
+diff --git a/ql/src/java/org/apache/hadoop/hive/ql/security/authorization/Privilege.java b/ql/src/java/org/apache/hadoop/hive/ql/security/authorization/Privilege.java
+index dbbe210..b1807ed 100644
+--- a/ql/src/java/org/apache/hadoop/hive/ql/security/authorization/Privilege.java
++++ b/ql/src/java/org/apache/hadoop/hive/ql/security/authorization/Privilege.java
+@@ -19,6 +19,7 @@
+ package org.apache.hadoop.hive.ql.security.authorization;
+ 
+ import java.util.EnumSet;
++
+ import org.apache.hadoop.hive.ql.parse.HiveParser;
+ 
+ /**
+@@ -26,7 +27,7 @@
+  * This class contains all of the predefined privileges in Hive.
+  */
+ public class Privilege {
+-  
++
+   public enum PrivilegeType {
+     ALL,
+     ALTER_DATA,
+@@ -37,6 +38,7 @@
+     LOCK,
+     SELECT,
+     SHOW_DATABASE,
++    GRANT,
+     UNKNOWN
+   }
+ 
+@@ -86,15 +88,17 @@
+       return PrivilegeType.SELECT;
+     } else if (canonicalizedName.equals("show_database")) {
+       return PrivilegeType.SHOW_DATABASE;
++    }else if (canonicalizedName.equals("grant")) {
++      return PrivilegeType.GRANT;
+     }
+ 
+     return PrivilegeType.UNKNOWN;
+   }
+ 
+   private PrivilegeType priv;
+-  
++
+   private EnumSet<PrivilegeScope> supportedScopeSet;
+-  
++
+   private Privilege(PrivilegeType priv, EnumSet<PrivilegeScope> scopeSet) {
+     super();
+     this.priv = priv;
+@@ -104,7 +108,7 @@
+   public Privilege(PrivilegeType priv) {
+     super();
+     this.priv = priv;
+-    
++
+   }
+ 
+   public PrivilegeType getPriv() {
+@@ -114,7 +118,7 @@
+   public void setPriv(PrivilegeType priv) {
+     this.priv = priv;
+   }
+-  
++
+   public boolean supportColumnLevel() {
+     return supportedScopeSet != null
+         && supportedScopeSet.contains(PrivilegeScope.COLUMN_LEVEL_SCOPE);
+@@ -129,7 +133,7 @@
+     return supportedScopeSet != null
+         && supportedScopeSet.contains(PrivilegeScope.TABLE_LEVEL_SCOPE);
+   }
+-  
++
+   @Override
+   public String toString() {
+     switch (this.priv) {
+@@ -151,6 +155,8 @@
+       return "Select";
+     case SHOW_DATABASE:
+       return "Show_Database";
++    case GRANT:
++      return "Grant";
+     default:
+       return "Unknown";
+     }
+@@ -186,4 +192,7 @@
+   public static Privilege SHOW_DATABASE = new Privilege(PrivilegeType.SHOW_DATABASE,
+       EnumSet.of(PrivilegeScope.USER_LEVEL_SCOPE));
+ 
++  public static Privilege GRANT = new Privilege(PrivilegeType.GRANT,
++      EnumSet.of(PrivilegeScope.USER_LEVEL_SCOPE));
++
+ }

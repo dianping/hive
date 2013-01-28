@@ -1,0 +1,44 @@
+diff --git ql/src/java/org/apache/hadoop/hive/ql/Driver.java ql/src/java/org/apache/hadoop/hive/ql/Driver.java
+index 5e6a8bd..567aafa 100644
+--- ql/src/java/org/apache/hadoop/hive/ql/Driver.java
++++ ql/src/java/org/apache/hadoop/hive/ql/Driver.java
+@@ -606,7 +606,11 @@ public class Driver implements CommandProcessor {
+                 cols.add(columns.get(i).getName());
+               }
+             }
+-            if (tbl.isPartitioned() && tableUsePartLevelAuth.get(tbl.getTableName())) {
++            //map may not contain all sources, since input list may have been optimized out
++            //or non-existent tho such sources may still be referenced by the TableScanOperator
++            //if it's null then the partition probably doesn't exist so let's use table permission
++            if (tbl.isPartitioned() &&
++                tableUsePartLevelAuth.get(tbl.getTableName()) == Boolean.TRUE) {
+               String alias_id = topOpMap.getKey();
+               PrunedPartitionList partsList = PartitionPruner.prune(parseCtx
+                   .getTopToTable().get(topOp), parseCtx.getOpToPartPruner()
+@@ -643,7 +647,7 @@ public class Driver implements CommandProcessor {
+         if (read.getPartition() != null) {
+           tbl = read.getPartition().getTable();
+           // use partition level authorization
+-          if (tableUsePartLevelAuth.get(tbl.getTableName())) {
++          if (tableUsePartLevelAuth.get(tbl.getTableName()) == Boolean.TRUE) {
+             List<String> cols = part2Cols.get(read.getPartition());
+             if (cols != null && cols.size() > 0) {
+               ss.getAuthorizer().authorize(read.getPartition().getTable(),
+diff --git ql/src/test/queries/clientnegative/join_nonexistent_part.q ql/src/test/queries/clientnegative/join_nonexistent_part.q
+new file mode 100644
+index 0000000..b4a4757
+--- /dev/null
++++ ql/src/test/queries/clientnegative/join_nonexistent_part.q
+@@ -0,0 +1,4 @@
++SET hive.security.authorization.enabled = true;
++SELECT *
++FROM srcpart s1 join src s2 on s1.key == s2.key
++WHERE s1.ds='non-existent';
+\ No newline at end of file
+diff --git ql/src/test/results/clientnegative/join_nonexistent_part.q.out ql/src/test/results/clientnegative/join_nonexistent_part.q.out
+new file mode 100644
+index 0000000..8380d75
+--- /dev/null
++++ ql/src/test/results/clientnegative/join_nonexistent_part.q.out
+@@ -0,0 +1 @@
++Authorization failed:No privilege 'Select' found for inputs { database:default, table:src, columnName:key}. Use show grant to get more details.

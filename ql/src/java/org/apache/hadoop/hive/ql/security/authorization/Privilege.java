@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.ql.security.authorization;
 
 import java.util.EnumSet;
+
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 
 /**
@@ -26,7 +27,7 @@ import org.apache.hadoop.hive.ql.parse.HiveParser;
  * This class contains all of the predefined privileges in Hive.
  */
 public class Privilege {
-  
+
   public enum PrivilegeType {
     ALL,
     ALTER_DATA,
@@ -37,6 +38,7 @@ public class Privilege {
     LOCK,
     SELECT,
     SHOW_DATABASE,
+    GRANT,
     UNKNOWN
   }
 
@@ -86,15 +88,17 @@ public class Privilege {
       return PrivilegeType.SELECT;
     } else if (canonicalizedName.equals("show_database")) {
       return PrivilegeType.SHOW_DATABASE;
+    }else if (canonicalizedName.equals("grant")) {
+      return PrivilegeType.GRANT;
     }
 
     return PrivilegeType.UNKNOWN;
   }
 
   private PrivilegeType priv;
-  
+
   private EnumSet<PrivilegeScope> supportedScopeSet;
-  
+
   private Privilege(PrivilegeType priv, EnumSet<PrivilegeScope> scopeSet) {
     super();
     this.priv = priv;
@@ -104,7 +108,7 @@ public class Privilege {
   public Privilege(PrivilegeType priv) {
     super();
     this.priv = priv;
-    
+
   }
 
   public PrivilegeType getPriv() {
@@ -114,7 +118,7 @@ public class Privilege {
   public void setPriv(PrivilegeType priv) {
     this.priv = priv;
   }
-  
+
   public boolean supportColumnLevel() {
     return supportedScopeSet != null
         && supportedScopeSet.contains(PrivilegeScope.COLUMN_LEVEL_SCOPE);
@@ -129,7 +133,7 @@ public class Privilege {
     return supportedScopeSet != null
         && supportedScopeSet.contains(PrivilegeScope.TABLE_LEVEL_SCOPE);
   }
-  
+
   @Override
   public String toString() {
     switch (this.priv) {
@@ -151,6 +155,8 @@ public class Privilege {
       return "Select";
     case SHOW_DATABASE:
       return "Show_Database";
+    case GRANT:
+      return "Grant";
     default:
       return "Unknown";
     }
@@ -184,6 +190,9 @@ public class Privilege {
       PrivilegeScope.ALLSCOPE);
 
   public static Privilege SHOW_DATABASE = new Privilege(PrivilegeType.SHOW_DATABASE,
+      EnumSet.of(PrivilegeScope.USER_LEVEL_SCOPE));
+
+  public static Privilege GRANT = new Privilege(PrivilegeType.GRANT,
       EnumSet.of(PrivilegeScope.USER_LEVEL_SCOPE));
 
 }

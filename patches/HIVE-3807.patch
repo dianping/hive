@@ -1,0 +1,109 @@
+diff --git a/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java b/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
+index 422d29e..85c1565 100644
+--- a/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
++++ b/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
+@@ -29,15 +29,12 @@
+ import java.util.Map.Entry;
+ import java.util.Properties;
+ 
+-import javax.security.auth.login.LoginException;
+-
+ import org.apache.commons.lang.StringUtils;
+ import org.apache.commons.logging.Log;
+ import org.apache.commons.logging.LogFactory;
+ import org.apache.hadoop.conf.Configuration;
+ import org.apache.hadoop.hive.shims.ShimLoader;
+ import org.apache.hadoop.mapred.JobConf;
+-import org.apache.hadoop.security.UserGroupInformation;
+ 
+ /**
+  * Hive Configuration.
+@@ -578,6 +575,10 @@
+     // beginning and end of Driver.run, these will be run in the order specified
+     HIVE_DRIVER_RUN_HOOKS("hive.exec.driver.run.hooks", ""),
+     HIVE_DDL_OUTPUT_FORMAT("hive.ddl.output.format", null),
++
++    // cosmos custom configuation starts here
++    // use short name for authorization
++    HIVE_USE_SHORT_USER_NAME("hive.use.short.username", false),
+     ;
+ 
+     public final String varname;
+@@ -951,13 +952,8 @@
+    * @throws IOException
+    */
+   public String getUser() throws IOException {
+-    try {
+-      UserGroupInformation ugi = ShimLoader.getHadoopShims()
+-        .getUGIForConf(this);
+-      return ugi.getUserName();
+-    } catch (LoginException le) {
+-      throw new IOException(le);
+-    }
++    String ret = ShimLoader.getHadoopShims().getUserName(this);
++    return ret;
+   }
+ 
+   public static String getColumnInternalName(int pos) {
+diff --git a/shims/src/0.20/java/org/apache/hadoop/hive/shims/Hadoop20Shims.java b/shims/src/0.20/java/org/apache/hadoop/hive/shims/Hadoop20Shims.java
+index d3ee87b..898e96d 100644
+--- a/shims/src/0.20/java/org/apache/hadoop/hive/shims/Hadoop20Shims.java
++++ b/shims/src/0.20/java/org/apache/hadoop/hive/shims/Hadoop20Shims.java
+@@ -486,6 +486,16 @@
+   }
+ 
+   @Override
++  public String getUserName(Configuration conf) throws IOException {
++    try {
++    UserGroupInformation ugi = getUGIForConf(conf);
++    return ugi.getUserName();
++    } catch (LoginException e) {
++      throw new IOException(e);
++    }
++  }
++
++  @Override
+   public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException {
+     UserGroupInformation ugi =
+       UnixUserGroupInformation.readFromConf(conf, UnixUserGroupInformation.UGI_PROPERTY_NAME);
+diff --git a/shims/src/common-secure/java/org/apache/hadoop/hive/shims/HadoopShimsSecure.java b/shims/src/common-secure/java/org/apache/hadoop/hive/shims/HadoopShimsSecure.java
+index 620c014..52f1d7c 100644
+--- a/shims/src/common-secure/java/org/apache/hadoop/hive/shims/HadoopShimsSecure.java
++++ b/shims/src/common-secure/java/org/apache/hadoop/hive/shims/HadoopShimsSecure.java
+@@ -483,6 +483,16 @@
+     // but can be backported. So we disable setup/cleanup in all versions >= 0.19
+     conf.setBoolean("mapreduce.job.committer.task.cleanup.needed", false);
+   }
++  
++  @Override
++  public String getUserName(Configuration conf) throws IOException {
++   UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
++   if (conf.getBoolean("hive.use.short.username", false)) {
++     return ugi.getShortUserName();
++   } else {
++     return ugi.getUserName();
++   }
++ }
+ 
+   @Override
+   public UserGroupInformation getUGIForConf(Configuration conf) throws IOException {
+diff --git a/shims/src/common/java/org/apache/hadoop/hive/shims/HadoopShims.java b/shims/src/common/java/org/apache/hadoop/hive/shims/HadoopShims.java
+index 80d1268..2f8bd69 100644
+--- a/shims/src/common/java/org/apache/hadoop/hive/shims/HadoopShims.java
++++ b/shims/src/common/java/org/apache/hadoop/hive/shims/HadoopShims.java
+@@ -158,6 +158,15 @@
+   void prepareJobOutput(JobConf conf);
+ 
+   /**
++   * Get the user name that the given job configuration will run as.
++   *
++   * This method has different implementations between non-secure version(before 0.20.203) and secure version(after 0.20.203).
++   */
++
++  public String getUserName(Configuration conf) throws IOException;
++
++
++  /**
+    * Get the UGI that the given job configuration will run as.
+    *
+    * In secure versions of Hadoop, this simply returns the current

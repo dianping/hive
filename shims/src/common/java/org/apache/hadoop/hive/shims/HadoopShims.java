@@ -157,6 +157,15 @@ public interface HadoopShims {
    */
   void prepareJobOutput(JobConf conf);
 
+
+  /**
+   * Get the user name that the given job configuration will run as.
+   *
+   * This method has different implementions between non-secure version(before 0.20.203) and secure version(after 0.20.203)
+   *
+   */
+  public String getUserName(Configuration conf) throws IOException;
+
   /**
    * Get the UGI that the given job configuration will run as.
    *

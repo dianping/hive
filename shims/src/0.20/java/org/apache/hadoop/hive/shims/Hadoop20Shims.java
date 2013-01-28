@@ -486,6 +486,16 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
+  public String getUserName(Configuration conf) throws IOException {
+    try {
+    UserGroupInformation ugi = getUGIForConf(conf);
+    return ugi.getUserName();
+    } catch (LoginException e) {
+      throw new IOException(e);
+    }
+  }
+
+  @Override
   public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException {
     UserGroupInformation ugi =
       UnixUserGroupInformation.readFromConf(conf, UnixUserGroupInformation.UGI_PROPERTY_NAME);

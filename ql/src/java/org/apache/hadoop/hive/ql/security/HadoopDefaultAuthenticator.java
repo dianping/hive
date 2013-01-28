@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -30,7 +31,7 @@ public class HadoopDefaultAuthenticator implements HiveAuthenticationProvider {
 
   private String userName;
   private List<String> groupNames;
-  
+
   private Configuration conf;
 
   @Override
@@ -58,7 +59,13 @@ public class HadoopDefaultAuthenticator implements HiveAuthenticationProvider {
           "Can not initialize HadoopDefaultAuthenticator.");
     }
 
-    this.userName = ugi.getUserName();
+    HiveConf hiveConf = new HiveConf(HadoopDefaultAuthenticator.class);
+    try {
+      this.userName = hiveConf.getUser();
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
+    }
+
     if (ugi.getGroupNames() != null) {
       this.groupNames = Arrays.asList(ugi.getGroupNames());
     }

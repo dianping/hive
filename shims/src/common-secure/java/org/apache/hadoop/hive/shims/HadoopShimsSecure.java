@@ -483,6 +483,16 @@ public abstract class HadoopShimsSecure implements HadoopShims {
     // but can be backported. So we disable setup/cleanup in all versions >= 0.19
     conf.setBoolean("mapreduce.job.committer.task.cleanup.needed", false);
   }
+  
+  @Override
+  public String getUserName(Configuration conf) throws IOException {
+   UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
+   if (conf.getBoolean("hive.use.short.username", false)) {
+     return ugi.getShortUserName();
+   } else {
+     return ugi.getUserName();
+   }
+ }
 
   @Override
   public UserGroupInformation getUGIForConf(Configuration conf) throws IOException {

@@ -34,9 +34,9 @@ import java.util.Properties;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hive.common.ServerUtils;
 import org.apache.hadoop.hive.common.LogUtils;
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException;
+import org.apache.hadoop.hive.common.ServerUtils;
 import org.apache.hadoop.hive.common.cli.CommonCliOptions;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
@@ -50,6 +50,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
@@ -61,8 +62,7 @@ import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportFactory;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
+
 import com.facebook.fb303.fb_status;
 
 /**
@@ -538,17 +538,23 @@ public class HiveServer extends ThriftHive {
    */
   public static class ThriftHiveProcessorFactory extends TProcessorFactory {
     private final HiveConf conf;
+    private HadoopThriftAuthBridge.Server saslServer = null;
 
-    public ThriftHiveProcessorFactory(TProcessor processor, HiveConf conf) {
+    public ThriftHiveProcessorFactory(TProcessor processor, HiveConf conf, HadoopThriftAuthBridge.Server _server) {
       super(processor);
       this.conf = conf;
+      this.saslServer = _server;
     }
 
     @Override
     public TProcessor getProcessor(TTransport trans) {
       try {
         Iface handler = new HiveServerHandler(new HiveConf(conf));
-        return new ThriftHive.Processor(handler);
+        if (saslServer == null) {
+          return new ThriftHive.Processor(handler);
+        } else {
+          return saslServer.wrapProcessor(new ThriftHive.Processor(handler));
+        }
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -663,12 +669,26 @@ public class HiveServer extends ThriftHive {
         conf.set((String) item.getKey(), (String) item.getValue());
       }
 
-      ThriftHiveProcessorFactory hfactory =
-        new ThriftHiveProcessorFactory(null, conf);
+      boolean useSasl = conf.getBoolVar(HiveConf.ConfVars.HIVESERVER_USE_THRIFT_SASL);
+
+      TTransportFactory transFactory;
+      ThriftHiveProcessorFactory hfactory;
+      if (useSasl) {
+        HadoopThriftAuthBridge.Server saslServer = ShimLoader.getHadoopThriftAuthBridge().createServer(
+                conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_KEYTAB_FILE),
+                conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_PRINCIPAL));
+
+        saslServer.startDelegationTokenSecretManager(conf);
+        hfactory = new ThriftHiveProcessorFactory(null, conf, saslServer);
+        transFactory = saslServer.createTransportFactory();
+      } else {
+        transFactory = new TTransportFactory();
+        hfactory = new ThriftHiveProcessorFactory(null, conf, null);
+      }
 
       TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(serverTransport)
         .processorFactory(hfactory)
-        .transportFactory(new TTransportFactory())
+        .transportFactory(transFactory)
         .protocolFactory(new TBinaryProtocol.Factory())
         .minWorkerThreads(cli.minWorkerThreads)
         .maxWorkerThreads(cli.maxWorkerThreads);

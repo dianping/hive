@@ -1,0 +1,647 @@
+diff --git a/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java b/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
+index a5565e9..df02ac3 100644
+--- a/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
++++ b/common/src/java/org/apache/hadoop/hive/conf/HiveConf.java
+@@ -580,6 +580,12 @@
+     // cosmos custom configuation starts here
+     // use short name for authorization
+     HIVE_USE_SHORT_USER_NAME("hive.use.short.username", false),
++
++
++    // Hive Server authentication
++    HIVESERVER_KERBEROS_KEYTAB_FILE("hive.hiveserver.kerberos.keytab.file", ""),
++    HIVESERVER_KERBEROS_PRINCIPAL("hive.hiveserver.kerberos.principal", ""),
++    HIVESERVER_USE_THRIFT_SASL("hive.hiveserver.sasl.enabled", false),
+     ;
+ 
+     public final String varname;
+diff --git a/jdbc/src/java/org/apache/hadoop/hive/jdbc/HiveConnection.java b/jdbc/src/java/org/apache/hadoop/hive/jdbc/HiveConnection.java
+index 6618243..c21e313 100644
+--- a/jdbc/src/java/org/apache/hadoop/hive/jdbc/HiveConnection.java
++++ b/jdbc/src/java/org/apache/hadoop/hive/jdbc/HiveConnection.java
+@@ -18,18 +18,8 @@
+ 
+ package org.apache.hadoop.hive.jdbc;
+ 
+-import org.apache.hadoop.hive.conf.HiveConf;
+-import org.apache.hadoop.hive.metastore.api.MetaException;
+-import org.apache.hadoop.hive.service.HiveClient;
+-import org.apache.hadoop.hive.service.HiveInterface;
+-import org.apache.hadoop.hive.service.HiveServer;
+-import org.apache.thrift.TException;
+-import org.apache.thrift.protocol.TBinaryProtocol;
+-import org.apache.thrift.protocol.TProtocol;
+-import org.apache.thrift.transport.TSocket;
+-import org.apache.thrift.transport.TTransport;
+-import org.apache.thrift.transport.TTransportException;
+-
++import java.io.File;
++import java.io.IOException;
+ import java.sql.Array;
+ import java.sql.Blob;
+ import java.sql.CallableStatement;
+@@ -47,6 +37,21 @@
+ import java.sql.Struct;
+ import java.util.Map;
+ import java.util.Properties;
++
++import org.apache.hadoop.hive.conf.HiveConf;
++import org.apache.hadoop.hive.metastore.api.MetaException;
++import org.apache.hadoop.hive.service.HiveClient;
++import org.apache.hadoop.hive.service.HiveInterface;
++import org.apache.hadoop.hive.service.HiveServer;
++import org.apache.hadoop.hive.shims.ShimLoader;
++import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
++import org.apache.hadoop.util.Shell;
++import org.apache.thrift.TException;
++import org.apache.thrift.protocol.TBinaryProtocol;
++import org.apache.thrift.protocol.TProtocol;
++import org.apache.thrift.transport.TSocket;
++import org.apache.thrift.transport.TTransport;
++import org.apache.thrift.transport.TTransportException;
+ 
+ /**
+  * HiveConnection.
+@@ -108,6 +113,52 @@
+       } catch (Exception e) {
+       }
+       transport = new TSocket(host, port);
++
++      String ServerHost = host;
++      HiveConf conf = new HiveConf(HiveConnection.class);
++      if (conf.getBoolean("hive.jdbc.client.kinit", false)) {
++
++        String cacheName=System.getenv("USERPROFILE")+"\\krb5cc_"+System.getenv("USERNAME");
++        File ticket_cache = new File(cacheName);
++        ticket_cache.delete();
++        String username = info.getProperty("user");
++        String password = info.getProperty("password");
++        if (username.equals("") || password.equals("")) {
++          throw new SQLException("username and password must be set");
++        }
++
++        String[] cmd = {"kinit", username, password};
++        try {
++          Shell.execCommand(cmd);
++        } catch (IOException e) {
++          throw new RuntimeException(e);
++        }
++      }
++
++      boolean useSasl = conf.getBoolVar(HiveConf.ConfVars.HIVESERVER_USE_THRIFT_SASL);
++
++      if (useSasl) {
++        try {
++          HadoopThriftAuthBridge.Client authBridge =
++              ShimLoader.getHadoopThriftAuthBridge().createClient();
++
++          String tokenSig = conf.get("hive.thriftserver.token.signature");
++          String tokenStrForm = ShimLoader.getHadoopShims().getTokenStrForm(tokenSig);
++
++          if (tokenStrForm != null) {
++            transport = authBridge.createClientTransport(null, ServerHost,
++                "DIGEST", tokenStrForm, transport);
++          } else {
++            String principalConfig = conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_PRINCIPAL);
++            transport = authBridge.createClientTransport(
++                principalConfig, ServerHost, "KERBEROS", null,
++                transport);
++          }
++        } catch (IOException ioe) {
++          ioe.printStackTrace();
++        }
++      }
++
+       TProtocol protocol = new TBinaryProtocol(transport);
+       client = new HiveClient(protocol);
+       try {
+@@ -130,7 +181,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#clearWarnings()
+    */
+ 
+@@ -140,7 +191,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#close()
+    */
+ 
+@@ -161,7 +212,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#commit()
+    */
+ 
+@@ -172,7 +223,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createArrayOf(java.lang.String,
+    * java.lang.Object[])
+    */
+@@ -184,7 +235,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createBlob()
+    */
+ 
+@@ -195,7 +246,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createClob()
+    */
+ 
+@@ -206,7 +257,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createNClob()
+    */
+ 
+@@ -217,7 +268,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createSQLXML()
+    */
+ 
+@@ -228,7 +279,7 @@
+ 
+   /**
+    * Creates a Statement object for sending SQL statements to the database.
+-   * 
++   *
+    * @throws SQLException
+    *           if a database access error occurs.
+    * @see java.sql.Connection#createStatement()
+@@ -243,7 +294,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createStatement(int, int)
+    */
+ 
+@@ -255,7 +306,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createStatement(int, int, int)
+    */
+ 
+@@ -267,7 +318,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#createStruct(java.lang.String, java.lang.Object[])
+    */
+ 
+@@ -279,7 +330,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getAutoCommit()
+    */
+ 
+@@ -289,7 +340,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getCatalog()
+    */
+ 
+@@ -299,7 +350,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getClientInfo()
+    */
+ 
+@@ -310,7 +361,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getClientInfo(java.lang.String)
+    */
+ 
+@@ -321,7 +372,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getHoldability()
+    */
+ 
+@@ -332,7 +383,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getMetaData()
+    */
+ 
+@@ -342,7 +393,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getTransactionIsolation()
+    */
+ 
+@@ -352,7 +403,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getTypeMap()
+    */
+ 
+@@ -363,7 +414,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#getWarnings()
+    */
+ 
+@@ -373,7 +424,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#isClosed()
+    */
+ 
+@@ -383,7 +434,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#isReadOnly()
+    */
+ 
+@@ -393,7 +444,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#isValid(int)
+    */
+ 
+@@ -404,7 +455,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#nativeSQL(java.lang.String)
+    */
+ 
+@@ -415,7 +466,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareCall(java.lang.String)
+    */
+ 
+@@ -426,7 +477,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareCall(java.lang.String, int, int)
+    */
+ 
+@@ -438,7 +489,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareCall(java.lang.String, int, int, int)
+    */
+ 
+@@ -450,7 +501,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String)
+    */
+ 
+@@ -460,7 +511,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String, int)
+    */
+ 
+@@ -471,7 +522,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String, int[])
+    */
+ 
+@@ -483,7 +534,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String,
+    * java.lang.String[])
+    */
+@@ -496,7 +547,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String, int, int)
+    */
+ 
+@@ -507,7 +558,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#prepareStatement(java.lang.String, int, int, int)
+    */
+ 
+@@ -519,7 +570,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#releaseSavepoint(java.sql.Savepoint)
+    */
+ 
+@@ -530,7 +581,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#rollback()
+    */
+ 
+@@ -541,7 +592,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#rollback(java.sql.Savepoint)
+    */
+ 
+@@ -552,7 +603,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setAutoCommit(boolean)
+    */
+ 
+@@ -563,7 +614,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setCatalog(java.lang.String)
+    */
+ 
+@@ -574,7 +625,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setClientInfo(java.util.Properties)
+    */
+ 
+@@ -586,7 +637,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setClientInfo(java.lang.String, java.lang.String)
+    */
+ 
+@@ -598,7 +649,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setHoldability(int)
+    */
+ 
+@@ -609,7 +660,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setReadOnly(boolean)
+    */
+ 
+@@ -620,7 +671,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setSavepoint()
+    */
+ 
+@@ -631,7 +682,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setSavepoint(java.lang.String)
+    */
+ 
+@@ -642,7 +693,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setTransactionIsolation(int)
+    */
+ 
+@@ -653,7 +704,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Connection#setTypeMap(java.util.Map)
+    */
+ 
+@@ -664,7 +715,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Wrapper#isWrapperFor(java.lang.Class)
+    */
+ 
+@@ -675,7 +726,7 @@
+ 
+   /*
+    * (non-Javadoc)
+-   * 
++   *
+    * @see java.sql.Wrapper#unwrap(java.lang.Class)
+    */
+ 
+diff --git a/service/src/java/org/apache/hadoop/hive/service/HiveServer.java b/service/src/java/org/apache/hadoop/hive/service/HiveServer.java
+index 5e190aa..a824947 100644
+--- a/service/src/java/org/apache/hadoop/hive/service/HiveServer.java
++++ b/service/src/java/org/apache/hadoop/hive/service/HiveServer.java
+@@ -34,9 +34,9 @@
+ import org.apache.commons.cli.OptionBuilder;
+ import org.apache.commons.logging.Log;
+ import org.apache.commons.logging.LogFactory;
+-import org.apache.hadoop.hive.common.ServerUtils;
+ import org.apache.hadoop.hive.common.LogUtils;
+ import org.apache.hadoop.hive.common.LogUtils.LogInitializationException;
++import org.apache.hadoop.hive.common.ServerUtils;
+ import org.apache.hadoop.hive.common.cli.CommonCliOptions;
+ import org.apache.hadoop.hive.conf.HiveConf;
+ import org.apache.hadoop.hive.metastore.HiveMetaStore;
+@@ -50,6 +50,7 @@
+ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
+ import org.apache.hadoop.hive.ql.session.SessionState;
+ import org.apache.hadoop.hive.shims.ShimLoader;
++import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
+ import org.apache.hadoop.mapred.ClusterStatus;
+ import org.apache.thrift.TException;
+ import org.apache.thrift.TProcessor;
+@@ -61,8 +62,7 @@
+ import org.apache.thrift.transport.TServerTransport;
+ import org.apache.thrift.transport.TTransport;
+ import org.apache.thrift.transport.TTransportFactory;
+-import org.apache.hadoop.fs.FileSystem;
+-import org.apache.hadoop.fs.Path;
++
+ import com.facebook.fb303.fb_status;
+ 
+ /**
+@@ -538,17 +538,23 @@
+    */
+   public static class ThriftHiveProcessorFactory extends TProcessorFactory {
+     private final HiveConf conf;
++    private HadoopThriftAuthBridge.Server saslServer = null;
+ 
+-    public ThriftHiveProcessorFactory(TProcessor processor, HiveConf conf) {
++    public ThriftHiveProcessorFactory(TProcessor processor, HiveConf conf, HadoopThriftAuthBridge.Server _server) {
+       super(processor);
+       this.conf = conf;
++      this.saslServer = _server;
+     }
+ 
+     @Override
+     public TProcessor getProcessor(TTransport trans) {
+       try {
+         Iface handler = new HiveServerHandler(new HiveConf(conf));
+-        return new ThriftHive.Processor(handler);
++        if (saslServer == null) {
++          return new ThriftHive.Processor(handler);
++        } else {
++          return saslServer.wrapProcessor(new ThriftHive.Processor(handler));
++        }
+       } catch (Exception e) {
+         throw new RuntimeException(e);
+       }
+@@ -663,12 +669,26 @@
+         conf.set((String) item.getKey(), (String) item.getValue());
+       }
+ 
+-      ThriftHiveProcessorFactory hfactory =
+-        new ThriftHiveProcessorFactory(null, conf);
++      boolean useSasl = conf.getBoolVar(HiveConf.ConfVars.HIVESERVER_USE_THRIFT_SASL);
++
++      TTransportFactory transFactory;
++      ThriftHiveProcessorFactory hfactory;
++      if (useSasl) {
++        HadoopThriftAuthBridge.Server saslServer = ShimLoader.getHadoopThriftAuthBridge().createServer(
++                conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_KEYTAB_FILE),
++                conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_PRINCIPAL));
++
++        saslServer.startDelegationTokenSecretManager(conf);
++        hfactory = new ThriftHiveProcessorFactory(null, conf, saslServer);
++        transFactory = saslServer.createTransportFactory();
++      } else {
++        transFactory = new TTransportFactory();
++        hfactory = new ThriftHiveProcessorFactory(null, conf, null);
++      }
+ 
+       TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(serverTransport)
+         .processorFactory(hfactory)
+-        .transportFactory(new TTransportFactory())
++        .transportFactory(transFactory)
+         .protocolFactory(new TBinaryProtocol.Factory())
+         .minWorkerThreads(cli.minWorkerThreads)
+         .maxWorkerThreads(cli.maxWorkerThreads);

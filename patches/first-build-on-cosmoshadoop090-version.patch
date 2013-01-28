@@ -1,0 +1,36 @@
+diff --git a/build.properties b/build.properties
+index ada8ba1..0a7ccbf 100644
+--- a/build.properties
++++ b/build.properties
+@@ -26,13 +26,13 @@
+ javac.args=
+ javac.args.warnings=
+ 
+-hadoop-0.20.version=0.20.1
+-hadoop-0.20S.version=1.0.0
++hadoop-0.20.version=0.20.2
++hadoop-0.20S.version=1.0.3
+ hadoop-0.23.version=0.23.0
+ hadoop.version=${hadoop-0.20.version}
+ hadoop.security.version=${hadoop-0.20S.version}
+-hadoop.mirror=http://mirror.facebook.net/facebook/hive-deps
+-hadoop.mirror2=http://archive.cloudera.com/hive-deps
++hadoop.mirror=http://archive.apache.org/dist/
++hadoop.mirror2=http://archive.apache.org/dist/
+ 
+ build.dir.hive=${hive.root}/build
+ build.dir.hadoop=${build.dir.hive}/hadoopcore
+diff --git a/ivy/libraries.properties b/ivy/libraries.properties
+index 9e9966b..6b8d4f6 100644
+--- a/ivy/libraries.properties
++++ b/ivy/libraries.properties
+@@ -38,7 +38,8 @@
+ commons-pool.version=1.5.4
+ derby.version=10.4.2.0
+ guava.version=r09
+-hbase.version=0.92.0
++hbase.version=0.94.1
++hbase-test.version=0.94.1
+ jackson.version=1.8.8
+ javaewah.version=0.3.2
+ jdo-api.version=2.3-ec

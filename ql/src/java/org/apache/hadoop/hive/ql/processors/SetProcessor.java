@@ -22,11 +22,15 @@ import static org.apache.hadoop.hive.serde.Constants.SERIALIZATION_NULL_FORMAT;
 import static org.apache.hadoop.hive.serde.Constants.STRING_TYPE_NAME;
 import static org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe.defaultNullString;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Schema;
 import org.apache.hadoop.hive.ql.parse.VariableSubstitution;
@@ -44,6 +48,20 @@ public class SetProcessor implements CommandProcessor {
   public static final String HIVECONF_PREFIX = "hiveconf:";
   public static final String HIVEVAR_PREFIX = "hivevar:";
   public static final String SET_COLUMN_NAME = "set";
+  private static Set<String> hiveConfSetBlackList;
+
+  static{
+    Set<String> set = new HashSet<String>();
+    set.add(ConfVars.HIVE_USE_SHORT_USER_NAME.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_ENABLED.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_MANAGER.varname);
+    set.add(ConfVars.HIVE_AUTHENTICATOR_MANAGER.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_GROUP_GRANTS.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_OWNER_GRANTS.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_ROLE_GRANTS.varname);
+    set.add(ConfVars.HIVE_AUTHORIZATION_TABLE_USER_GRANTS.varname);
+    hiveConfSetBlackList = Collections.unmodifiableSet(set);
+  }
 
   public static boolean getBoolean(String value) {
     if (value.equals("on") || value.equals("true")) {
@@ -111,9 +129,7 @@ public class SetProcessor implements CommandProcessor {
       System.getProperties().setProperty(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
       return new CommandProcessorResponse(0);
     } else if (varname.startsWith(SetProcessor.HIVECONF_PREFIX)){
-      String propName = varname.substring(SetProcessor.HIVECONF_PREFIX.length());
-      ss.getConf().set(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
-      return new CommandProcessorResponse(0);
+      return setHiveConf(ss, varname, varvalue);
     } else if (varname.startsWith(SetProcessor.HIVEVAR_PREFIX)) {
       String propName = varname.substring(SetProcessor.HIVEVAR_PREFIX.length());
       ss.getHiveVariables().put(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
@@ -122,6 +138,17 @@ public class SetProcessor implements CommandProcessor {
       String substitutedValue = new VariableSubstitution().substitute(ss.getConf(),varvalue);
       ss.getConf().set(varname, substitutedValue );
       ss.getOverriddenConfigurations().put(varname, substitutedValue);
+      return new CommandProcessorResponse(0);
+    }
+  }
+
+
+  private CommandProcessorResponse setHiveConf(SessionState ss, String varname, String varvalue){
+    if(hiveConfSetBlackList.contains(varname)){
+      ss.err.println(varname + " is not allowed to be set in hive command.");
+      return new CommandProcessorResponse(1);
+    }else{
+      ss.getConf().set(varname, new VariableSubstitution().substitute(ss.getConf(),varvalue) );
       return new CommandProcessorResponse(0);
     }
   }
