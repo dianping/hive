@@ -129,26 +129,24 @@ public class SetProcessor implements CommandProcessor {
       System.getProperties().setProperty(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
       return new CommandProcessorResponse(0);
     } else if (varname.startsWith(SetProcessor.HIVECONF_PREFIX)){
-      return setHiveConf(ss, varname, varvalue);
+      String propName = varname.substring(SetProcessor.HIVECONF_PREFIX.length());
+      return setHiveConf(ss, propName, varvalue);
     } else if (varname.startsWith(SetProcessor.HIVEVAR_PREFIX)) {
       String propName = varname.substring(SetProcessor.HIVEVAR_PREFIX.length());
       ss.getHiveVariables().put(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue));
       return new CommandProcessorResponse(0);
     } else {
-      String substitutedValue = new VariableSubstitution().substitute(ss.getConf(),varvalue);
-      ss.getConf().set(varname, substitutedValue );
-      ss.getOverriddenConfigurations().put(varname, substitutedValue);
-      return new CommandProcessorResponse(0);
+      return setHiveConf(ss, varname, varvalue);
     }
   }
 
 
-  private CommandProcessorResponse setHiveConf(SessionState ss, String varname, String varvalue){
-    if(hiveConfSetBlackList.contains(varname)){
-      ss.err.println(varname + " is not allowed to be set in hive command.");
+  private CommandProcessorResponse setHiveConf(SessionState ss, String propName, String varvalue){
+    if(hiveConfSetBlackList.contains(propName)){
+      ss.err.println(propName + " is not allowed to be set in hive command.");
       return new CommandProcessorResponse(1);
     }else{
-      ss.getConf().set(varname, new VariableSubstitution().substitute(ss.getConf(),varvalue) );
+      ss.getConf().set(propName, new VariableSubstitution().substitute(ss.getConf(),varvalue) );
       return new CommandProcessorResponse(0);
     }
   }
