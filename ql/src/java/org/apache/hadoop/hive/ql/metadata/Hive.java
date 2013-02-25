@@ -31,13 +31,13 @@ import static org.apache.hadoop.hive.serde.Constants.STRING_TYPE_NAME;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.HashSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -63,7 +63,6 @@ import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.HiveObjectType;
 import org.apache.hadoop.hive.metastore.api.Index;
-import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -95,7 +94,7 @@ public class Hive {
 
   static final private Log LOG = LogFactory.getLog("hive.ql.metadata.Hive");
 
-  private HiveConf conf = null;
+  private static HiveConf conf = null;
   private IMetaStoreClient metaStoreClient;
   private String currentDatabase;
 
@@ -1929,16 +1928,23 @@ public class Hive {
 
   static protected void copyFiles(Path srcf, Path destf, FileSystem fs)
       throws HiveException {
+
+    // keep the destf group as the same as before when rename if destf exists, fixed by guangbin.zhu
+    String originGroup = null;
+
     try {
       // create the destination if it does not exist
       if (!fs.exists(destf)) {
         fs.mkdirs(destf);
       }
+      originGroup = fs.getFileStatus(destf).getGroup();
     } catch (IOException e) {
       throw new HiveException(
           "copyFiles: error while checking/creating destination directory!!!",
           e);
     }
+
+    LOG.debug("Copying files from "+ srcf.toString() + " to " + destf.toString() + ", destf originGroup: "+ originGroup );
 
     FileStatus[] srcs;
     try {
@@ -1962,11 +1968,27 @@ public class Hive {
         for (FileStatus item : items) {
           Path source = item.getPath();
           Path target = new Path(destf, item.getPath().getName());
+
           if (!fs.rename(source, target)) {
             throw new IOException("Cannot move " + source + " to " + target);
           }
+
         }
       }
+
+      if(originGroup != null && !"supergroup".equalsIgnoreCase(originGroup)){
+        try {
+          FsShell fshell = new FsShell();
+          fshell.setConf(conf);
+          fshell.run(new String[]{"-chgrp", "-R",originGroup,destf.toString()});
+        } catch (Exception e) {
+          LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+          e.printStackTrace();
+        }
+      }
+
+      LOG.debug("Directory " + destf.toString() + "chgrp to "+ originGroup);
+
     } catch (IOException e) {
       throw new HiveException("copyFiles: error while moving files!!!", e);
     }
@@ -2028,8 +2050,14 @@ public class Hive {
         if (!fs.exists(destf.getParent())) {
           fs.mkdirs(destf.getParent());
         }
+
+     // keep the destf group as the same as before when rename if destf exists, otherwise keep the parent's. fixed by guangbin.zhu
+        String originGroup = null;
         if (fs.exists(destf)) {
+          originGroup = fs.getFileStatus(destf).getGroup();
           fs.delete(destf, true);
+        }else {
+          originGroup = fs.getFileStatus(destf.getParent()).getGroup();
         }
 
         boolean b = fs.rename(srcs[0].getPath(), destf);
@@ -2037,7 +2065,22 @@ public class Hive {
           throw new HiveException("Unable to move results from " + srcs[0].getPath()
               + " to destination directory: " + destf);
         }
+
         LOG.debug("Renaming:" + srcf.toString() + " to " + destf.toString()  + ",Status:" + b);
+
+        if(originGroup != null && !"supergroup".equalsIgnoreCase(originGroup)){
+
+          try {
+            FsShell fshell = new FsShell();
+            fshell.setConf(conf);
+            fshell.run(new String[]{"-chgrp", "-R",originGroup,destf.toString()});
+          } catch (Exception e) {
+            LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+            e.printStackTrace();
+          }
+        }
+
+        LOG.debug("Directory " + destf.toString() + "chgrp to "+ originGroup);
       } else { // srcf is a file or pattern containing wildcards
         if (!fs.exists(destf)) {
           fs.mkdirs(destf);
@@ -2050,7 +2093,21 @@ public class Hive {
                 + " into: " + destf);
           }
         }
+
+        String originGroup = fs.getFileStatus(destf).getGroup();
+
+        if(originGroup != null && !"supergroup".equalsIgnoreCase(originGroup)){
+          try {
+            FsShell fshell = new FsShell();
+            fshell.setConf(conf);
+            fshell.run(new String[]{"-chgrp", "-R",originGroup,destf.toString()});
+          } catch (Exception e) {
+            LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+            e.printStackTrace();
+          }
+        }
       }
+
     } catch (IOException e) {
       throw new HiveException(e.getMessage(), e);
     }

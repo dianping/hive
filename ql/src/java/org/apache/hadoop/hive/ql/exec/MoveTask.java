@@ -32,13 +32,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FsShell;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
-import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.hooks.LineageInfo.DataContainer;
+import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
@@ -73,6 +74,14 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
       String mesg_detail = " from " + sourcePath.toString();
       console.printInfo(mesg, mesg_detail);
 
+   // keep the targetPath group as the same as before when rename if targetPath exists, otherwise keep the parent's. fixed by guangbin.zhu
+      String originGroup = null;
+      if(targetPath!=null && fs.exists(targetPath)){
+        originGroup = fs.getFileStatus(targetPath).getGroup();
+      }else {
+        originGroup = fs.getFileStatus(targetPath.getParent()).getGroup();
+      }
+
       // delete the output directory if it already exists
       fs.delete(targetPath, true);
       // if source exists, rename. Otherwise, create a empty directory
@@ -83,6 +92,8 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
         if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_INSERT_INTO_MULTILEVEL_DIRS)) {
         deletePath = createTargetPath(targetPath, fs);
         }
+
+
         if (!fs.rename(sourcePath, targetPath)) {
           try {
             if (deletePath != null) {
@@ -95,9 +106,22 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
           throw new HiveException("Unable to rename: " + sourcePath
               + " to: " + targetPath);
         }
+
       } else if (!fs.mkdirs(targetPath)) {
         throw new HiveException("Unable to make directory: " + targetPath);
       }
+
+      if(originGroup != null && !"supergroup".equalsIgnoreCase(originGroup)){
+        try {
+          FsShell fshell = new FsShell();
+          fshell.setConf(conf);
+          fshell.run(new String[]{"-chgrp", "-R",originGroup,targetPath.toString()});
+        } catch (Exception e) {
+          LOG.warn("cannot chgrp " + targetPath.toString() + " to "+ originGroup + e.getMessage());
+          e.printStackTrace();
+        }
+      }
+
     } else {
       // This is a local file
       String mesg = "Copying data to local directory " + targetPath.toString();
@@ -260,14 +284,14 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
               db.loadDynamicPartitions(
                   new Path(tbd.getSourceDir()),
                   tbd.getTable().getTableName(),
-                	tbd.getPartitionSpec(),
-                	tbd.getReplace(),
-                	dpCtx.getNumDPCols(),
-                	tbd.getHoldDDLTime());
+                  tbd.getPartitionSpec(),
+                  tbd.getReplace(),
+                  dpCtx.getNumDPCols(),
+                  tbd.getHoldDDLTime());
 
             if (dp.size() == 0 && conf.getBoolVar(HiveConf.ConfVars.HIVE_ERROR_ON_EMPTY_PARTITION)) {
               throw new HiveException("This query creates no partitions." +
-              		" To turn off this error, set hive.error.on.empty.partition=false.");
+                  " To turn off this error, set hive.error.on.empty.partition=false.");
             }
 
             // for each partition spec, get the partition
@@ -303,12 +327,12 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
           } else { // static partitions
             db.loadPartition(new Path(tbd.getSourceDir()), tbd.getTable().getTableName(),
                 tbd.getPartitionSpec(), tbd.getReplace(), tbd.getHoldDDLTime(), tbd.getInheritTableSpecs());
-          	Partition partn = db.getPartition(table, tbd.getPartitionSpec(), false);
-          	dc = new DataContainer(table.getTTable(), partn.getTPartition());
-          	// add this partition to post-execution hook
-          	if (work.getOutputs() != null) {
-          	  work.getOutputs().add(new WriteEntity(partn, true));
-          	}
+            Partition partn = db.getPartition(table, tbd.getPartitionSpec(), false);
+            dc = new DataContainer(table.getTTable(), partn.getTPartition());
+            // add this partition to post-execution hook
+            if (work.getOutputs() != null) {
+              work.getOutputs().add(new WriteEntity(partn, true));
+            }
          }
         }
         if (SessionState.get() != null && dc != null) {
