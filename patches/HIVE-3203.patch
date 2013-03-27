@@ -1,0 +1,32 @@
+Index: ql/src/test/results/clientnegative/drop_partition_failure2.q.out
+===================================================================
+--- ql/src/test/results/clientnegative/drop_partition_failure2.q.out	(revision 0)
++++ ql/src/test/results/clientnegative/drop_partition_failure2.q.out	(revision 0)
+@@ -0,0 +1 @@
++FAILED: SemanticException [Error 10001]: Table not found fake_table
+Index: ql/src/test/queries/clientnegative/drop_partition_failure2.q
+===================================================================
+--- ql/src/test/queries/clientnegative/drop_partition_failure2.q	(revision 0)
++++ ql/src/test/queries/clientnegative/drop_partition_failure2.q	(revision 0)
+@@ -0,0 +1,4 @@
++-- Verifies that dropping a partition from a table that doesn't exist fails appropriately
++
++ALTER TABLE fake_table DROP PARTITION (part = '1');
++
+Index: ql/src/java/org/apache/hadoop/hive/ql/parse/DDLSemanticAnalyzer.java
+===================================================================
+--- ql/src/java/org/apache/hadoop/hive/ql/parse/DDLSemanticAnalyzer.java	(revision 1355581)
++++ ql/src/java/org/apache/hadoop/hive/ql/parse/DDLSemanticAnalyzer.java	(working copy)
+@@ -1793,10 +1793,8 @@
+     Table tab = null;
+ 
+     try {
+-      tab = db.getTable(db.getCurrentDatabase(), tblName, false);
+-      if (tab != null) {
+-        inputs.add(new ReadEntity(tab));
+-      }
++      tab = db.getTable(db.getCurrentDatabase(), tblName, true);
++      inputs.add(new ReadEntity(tab));
+     } catch (HiveException e) {
+       throw new SemanticException(ErrorMsg.INVALID_TABLE.getMsg(tblName));
+     }
