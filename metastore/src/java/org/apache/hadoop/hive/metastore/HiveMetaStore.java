@@ -917,7 +917,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
         isExternal = isExternal(tbl);
-        if (tbl.getSd().getLocation() != null) {
+        if (tbl.getSd().getLocation() != null && !isExternal) {
           tblPath = new Path(tbl.getSd().getLocation());
           if (!wh.isWritable(tblPath.getParent())) {
             throw new MetaException("Table metadata not deleted since " +
