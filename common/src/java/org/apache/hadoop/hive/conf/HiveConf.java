@@ -19,7 +19,6 @@
 package org.apache.hadoop.hive.conf;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -81,7 +80,8 @@ public class HiveConf extends Configuration {
       HiveConf.ConfVars.METASTOREWAREHOUSE,
       HiveConf.ConfVars.METASTOREURIS,
       HiveConf.ConfVars.METASTORE_MODE,
-      HiveConf.ConfVars.METASTORETHRIFTRETRIES,
+      HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES,
+      HiveConf.ConfVars.METASTORETHRIFTFAILURERETRIES,
       HiveConf.ConfVars.METASTORE_CLIENT_CONNECT_RETRY_DELAY,
       HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT,
       HiveConf.ConfVars.METASTOREPWD,
@@ -121,6 +121,7 @@ public class HiveConf extends Configuration {
       HiveConf.ConfVars.METASTORE_END_FUNCTION_LISTENERS,
       HiveConf.ConfVars.METASTORE_PART_INHERIT_TBL_PROPS,
       HiveConf.ConfVars.METASTORE_PRE_EVENT_LISTENERS,
+      HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE,
       };
 
   /**
@@ -229,7 +230,10 @@ public class HiveConf extends Configuration {
     METASTOREWAREHOUSE("hive.metastore.warehouse.dir", "/user/hive/warehouse"),
     METASTOREURIS("hive.metastore.uris", ""),
     // Number of times to retry a connection to a Thrift metastore server
-    METASTORETHRIFTRETRIES("hive.metastore.connect.retries", 5),
+    METASTORETHRIFTCONNECTIONRETRIES("hive.metastore.connect.retries", 3),
+    // Number of times to retry a Thrift metastore call upon failure
+    METASTORETHRIFTFAILURERETRIES("hive.metastore.failure.retries", 1),
+
     // Number of seconds the client should wait between connection attempts
     METASTORE_CLIENT_CONNECT_RETRY_DELAY("hive.metastore.client.connect.retry.delay", 1),
     // Socket timeout for the client connection (in seconds)
@@ -265,6 +269,7 @@ public class HiveConf extends Configuration {
     METASTORE_KERBEROS_PRINCIPAL("hive.metastore.kerberos.principal",
         "hive-metastore/_HOST@EXAMPLE.COM"),
     METASTORE_USE_THRIFT_SASL("hive.metastore.sasl.enabled", false),
+    METASTORE_TOKEN_SIGNATURE("hive.metastore.token.signature", ""),
     METASTORE_CLUSTER_DELEGATION_TOKEN_STORE_CLS(
         "hive.cluster.delegation.token.store.class",
         "org.apache.hadoop.hive.thrift.MemoryTokenStore"),

@@ -44,7 +44,7 @@ public class TestMarkPartitionRemote extends TestMarkPartition{
     t.start();
     hiveConf.setBoolVar(ConfVars.METASTORE_MODE, false);
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:29111");
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTRETRIES, 3);
+    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
     Thread.sleep(30000);
   }
 }
