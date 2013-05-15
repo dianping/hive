@@ -113,6 +113,9 @@ public class Driver implements CommandProcessor {
   static final private Log LOG = LogFactory.getLog(Driver.class.getName());
   static final private LogHelper console = new LogHelper(LOG);
 
+  static final private Log HIVE_CMD_LOG = LogFactory.getLog("cmdlog");
+  static final private String COLUMN_SEP = "\t";
+
   private int maxRows = 100;
   ByteStream.Output bos = new ByteStream.Output();
 
@@ -976,6 +979,9 @@ public class Driver implements CommandProcessor {
     perfLogger.PerfLogEnd(LOG, PerfLogger.DRIVER_RUN);
     perfLogger.close(LOG, plan);
 
+    //log cmd info to a seperate file
+    logCmdInfo(HIVE_CMD_LOG, command, perfLogger);
+
     // Take all the driver run hooks and post-execute them.
     try {
       for (HiveDriverRunHook driverRunHook : driverRunHooks) {
@@ -990,6 +996,18 @@ public class Driver implements CommandProcessor {
     }
 
     return new CommandProcessorResponse(ret);
+  }
+
+  private void logCmdInfo(Log log, String cmd, PerfLogger prefLogger){
+    StringBuilder sb = new StringBuilder();
+    sb.append(cmd).append(COLUMN_SEP)
+      .append(prefLogger.getStartTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
+      .append(prefLogger.getEndTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
+      .append(prefLogger.getStartTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
+      .append(prefLogger.getEndTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
+      .append(prefLogger.getStartTime(PerfLogger.DRIVER_EXECUTE)).append(COLUMN_SEP)
+      .append(prefLogger.getEndTime(PerfLogger.DRIVER_EXECUTE))
+    log.info(sb.toString());
   }
 
   /**
