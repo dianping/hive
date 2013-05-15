@@ -1006,7 +1006,7 @@ public class Driver implements CommandProcessor {
       .append(prefLogger.getStartTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
       .append(prefLogger.getEndTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.DRIVER_EXECUTE)).append(COLUMN_SEP)
-      .append(prefLogger.getEndTime(PerfLogger.DRIVER_EXECUTE))
+      .append(prefLogger.getEndTime(PerfLogger.DRIVER_EXECUTE));
     log.info(sb.toString());
   }
 
