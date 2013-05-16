@@ -582,6 +582,10 @@ public class HiveConf extends Configuration {
     HIVE_DRIVER_RUN_HOOKS("hive.exec.driver.run.hooks", ""),
     HIVE_DDL_OUTPUT_FORMAT("hive.ddl.output.format", null),
 
+    // Allow TCP Keep alive socket option for for HiveServer or a maximum timeout for the socket.
+    SERVER_READ_SOCKET_TIMEOUT("hive.server.read.socket.timeout", 10),
+    SERVER_TCP_KEEP_ALIVE("hive.server.tcp.keepalive", true),
+
 
     // cosmos custom configuation starts here
     // use short name for authorization

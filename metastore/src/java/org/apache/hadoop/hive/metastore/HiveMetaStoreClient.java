@@ -160,6 +160,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     if (metastoreUris.length > 1) {
       Collections.shuffle(Arrays.asList(metastoreUris));
     }
+    LOG.info("metastore uris: " + StringUtils.uriToString(metastoreUris));
 
     // finally open the store
     open();
