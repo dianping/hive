@@ -1000,7 +1000,7 @@ public class Driver implements CommandProcessor {
 
   private void logCmdInfo(Log log, String cmd, PerfLogger prefLogger){
     StringBuilder sb = new StringBuilder();
-    sb.append(cmd).append(COLUMN_SEP)
+    sb.append(cmd.replace('\t',' ').replace('\n', ' ')).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getEndTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
