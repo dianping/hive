@@ -39,6 +39,7 @@ import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapred.Counters;
 import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.mapred.Counters.Group;
@@ -490,12 +491,16 @@ public class HiveHistory {
   /**
    * write out counters.
    */
-  static Map<String, String> ctrmap = null;
+  static ThreadLocal<Map<String,String>> ctrMapFactory =
+      new ThreadLocal<Map<String, String>>() {
+        @Override
+        protected Map<String,String> initialValue() {
+          return new HashMap<String,String>();
+        }
+      };
 
   public void logPlanProgress(QueryPlan plan) throws IOException {
-    if (ctrmap == null) {
-      ctrmap = new HashMap<String, String>();
-    }
+    Map<String,String> ctrmap = ctrMapFactory.get();
     ctrmap.put("plan", plan.toString());
     log(RecordTypes.Counters, ctrmap);
   }
@@ -528,11 +533,14 @@ public class HiveHistory {
     return null;
 
   }
+
+  public void closeStream() {
+    IOUtils.cleanup(LOG, histStream);
+  }
+
   @Override
   public void finalize() throws Throwable {
-    if (histStream !=null){
-      histStream.close();
-    }
+    closeStream();
     super.finalize();
   }
 }

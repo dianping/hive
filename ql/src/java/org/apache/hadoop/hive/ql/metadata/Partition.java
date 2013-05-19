@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Order;
+import org.apache.hadoop.hive.metastore.api.SkewedValueList;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
@@ -214,7 +215,7 @@ public class Partition implements Serializable {
     getInputFormatClass();
     // This will set up field: outputFormatClass
     getOutputFormatClass();
-
+    getDeserializer();
   }
 
   public String getName() {
@@ -274,6 +275,10 @@ public class Partition implements Serializable {
 
   public Properties getSchema() {
     return MetaStoreUtils.getSchema(tPartition, table.getTTable());
+  }
+
+  public Properties getMetadataFromPartitionSchema() {
+    return MetaStoreUtils.getPartitionMetadata(tPartition, table.getTTable());
   }
 
   public Properties getSchemaFromTableSchema(Properties tblSchema) {
@@ -380,11 +385,10 @@ public class Partition implements Serializable {
   }
 
   /**
-   * mapping from bucket number to bucket path
+   * get all paths for this partition in a sorted manner
    */
-  // TODO: add test case and clean it up
   @SuppressWarnings("nls")
-  public Path getBucketPath(int bucketNum) {
+  public FileStatus[] getSortedPaths() {
     try {
       // Previously, this got the filesystem of the Table, which could be
       // different from the filesystem of the partition.
@@ -403,11 +407,23 @@ public class Partition implements Serializable {
       if (srcs.length == 0) {
         return null;
       }
-      return srcs[bucketNum].getPath();
+      return srcs;
     } catch (Exception e) {
-      throw new RuntimeException("Cannot get bucket path for bucket "
-          + bucketNum, e);
+      throw new RuntimeException("Cannot get path ", e);
     }
+  }
+
+  /**
+   * mapping from bucket number to bucket path
+   */
+  // TODO: add test case and clean it up
+  @SuppressWarnings("nls")
+  public Path getBucketPath(int bucketNum) {
+    FileStatus srcs[] = getSortedPaths();
+    if (srcs == null) {
+      return null;
+    }
+    return srcs[bucketNum].getPath();
   }
 
   @SuppressWarnings("nls")
@@ -632,18 +648,18 @@ public class Partition implements Serializable {
 
   public void setSkewedValueLocationMap(List<String> valList, String dirName)
       throws HiveException {
-    Map<List<String>, String> mappings = tPartition.getSd().getSkewedInfo()
+    Map<SkewedValueList, String> mappings = tPartition.getSd().getSkewedInfo()
         .getSkewedColValueLocationMaps();
     if (null == mappings) {
-      mappings = new HashMap<List<String>, String>();
+      mappings = new HashMap<SkewedValueList, String>();
       tPartition.getSd().getSkewedInfo().setSkewedColValueLocationMaps(mappings);
     }
 
     // Add or update new mapping
-    mappings.put(valList, dirName);
+    mappings.put(new SkewedValueList(valList), dirName);
   }
 
-  public Map<List<String>, String> getSkewedColValueLocationMaps() {
+  public Map<SkewedValueList, String> getSkewedColValueLocationMaps() {
     return tPartition.getSd().getSkewedInfo().getSkewedColValueLocationMaps();
   }
 }

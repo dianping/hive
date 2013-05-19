@@ -52,6 +52,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.JobStatus;
+import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapred.OutputCommitter;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
@@ -98,6 +99,43 @@ public class Hadoop20Shims implements HadoopShims {
    */
   public void setTmpFiles(String prop, String files) {
     // gone in 20+
+  }
+
+
+  /**
+   * Returns a shim to wrap MiniMrCluster
+   */
+  public MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
+                                     String nameNode, int numDir) throws IOException {
+    return new MiniMrShim(conf, numberOfTaskTrackers, nameNode, numDir);
+  }
+
+  /**
+   * Shim for MiniMrCluster
+   */
+  public class MiniMrShim implements HadoopShims.MiniMrShim {
+
+    private final MiniMRCluster mr;
+
+    public MiniMrShim(Configuration conf, int numberOfTaskTrackers,
+        String nameNode, int numDir) throws IOException {
+      this.mr = new MiniMRCluster(numberOfTaskTrackers, nameNode, numDir);
+    }
+
+    @Override
+    public int getJobTrackerPort() throws UnsupportedOperationException {
+      return mr.getJobTrackerPort();
+    }
+
+    @Override
+    public void shutdown() throws IOException {
+      mr.shutdown();
+    }
+
+    @Override
+    public void setupConfiguration(Configuration conf) {
+      setJobLauncherRpcAddress(conf, "localhost:" + mr.getJobTrackerPort());
+    }
   }
 
   public HadoopShims.MiniDFSShim getMiniDfs(Configuration conf,
@@ -540,10 +578,16 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
-  public void doAs(UserGroupInformation ugi, PrivilegedExceptionAction<Void> pvea) throws
+  public void setTokenStr(UserGroupInformation ugi, String tokenStr, String tokenService)
+    throws IOException {
+    throw new UnsupportedOperationException("Tokens are not supported in current hadoop version");
+  }
+
+  @Override
+  public <T> T doAs(UserGroupInformation ugi, PrivilegedExceptionAction<T> pvea) throws
     IOException, InterruptedException {
     try {
-      Subject.doAs(SecurityUtil.getSubject(ugi),pvea);
+      return Subject.doAs(SecurityUtil.getSubject(ugi),pvea);
     } catch (PrivilegedActionException e) {
       throw new IOException(e);
     }
@@ -552,6 +596,21 @@ public class Hadoop20Shims implements HadoopShims {
   @Override
   public UserGroupInformation createRemoteUser(String userName, List<String> groupNames) {
     return new UnixUserGroupInformation(userName, groupNames.toArray(new String[0]));
+  }
+
+  @Override
+  public void loginUserFromKeytab(String principal, String keytabFile) throws IOException {
+    throw new UnsupportedOperationException("Kerberos login is not supported in current hadoop version");
+  }
+
+  @Override
+  public UserGroupInformation createProxyUser(String userName) throws IOException {
+    return createRemoteUser(userName, null);
+  }
+
+  @Override
+  public boolean isSecurityEnabled() {
+    return false;
   }
 
   @Override

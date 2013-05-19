@@ -19,13 +19,14 @@
 package org.apache.hadoop.hive.ql.metadata.formatting;
 
 import java.io.DataOutputStream;
-import java.io.OutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
@@ -53,6 +54,15 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
 
     private static final int separator = Utilities.tabCode;
     private static final int terminator = Utilities.newLineCode;
+
+    /** The number of columns to be used in pretty formatting metadata output.
+     * If -1, then the current terminal width is auto-detected and used.
+     */
+    private final int prettyOutputNumCols;
+
+    public TextMetaDataFormatter(int prettyOutputNumCols) {
+      this.prettyOutputNumCols = prettyOutputNumCols;
+    }
 
     /**
      * Write an error message.
@@ -124,15 +134,21 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
     public void describeTable(DataOutputStream outStream,
                               String colPath, String tableName,
                               Table tbl, Partition part, List<FieldSchema> cols,
-                              boolean isFormatted, boolean isExt)
+                              boolean isFormatted, boolean isExt, boolean isPretty)
          throws HiveException {
         try {
           if (colPath.equals(tableName)) {
+            List<FieldSchema> partCols = tbl.isPartitioned() ? tbl.getPartCols() : null;
             outStream.writeBytes(
-              MetaDataFormatUtils.getAllColumnsInformation(
-                cols, tbl.isPartitioned() ? tbl.getPartCols() : null));
+              isPretty ?
+                  MetaDataPrettyFormatUtils.getAllColumnsInformation(
+                      cols, partCols, prettyOutputNumCols)
+                :
+                  MetaDataFormatUtils.getAllColumnsInformation(cols, partCols, isFormatted)
+              );
           } else {
-            outStream.writeBytes(MetaDataFormatUtils.getAllColumnsInformation(cols));
+            outStream.writeBytes(
+                MetaDataFormatUtils.getAllColumnsInformation(cols, isFormatted));
           }
 
           if (tableName.equals(colPath)) {
@@ -441,11 +457,13 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
         try {
             outStream.writeBytes(database);
             outStream.write(separator);
-            if (comment != null)
-                outStream.writeBytes(comment);
+            if (comment != null) {
+              outStream.writeBytes(comment);
+            }
             outStream.write(separator);
-            if (location != null)
-                outStream.writeBytes(location);
+            if (location != null) {
+              outStream.writeBytes(location);
+            }
             outStream.write(separator);
             if (params != null && !params.isEmpty()) {
                 outStream.writeBytes(params.toString());

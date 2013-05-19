@@ -56,6 +56,9 @@ public class QBParseInfo {
 
   private boolean isAnalyzeCommand; // used for the analyze command (statistics)
   private boolean isInsertToTable;  // used for insert overwrite command (statistics)
+  private boolean isNoScanAnalyzeCommand; // used for the analyze command (statistics) (noscan)
+  private boolean isPartialScanAnalyzeCommand; // used for the analyze command (statistics)
+                                               // (partialscan)
 
   private final HashMap<String, tableSpec> tableSpecs; // used for statistics
 
@@ -64,6 +67,7 @@ public class QBParseInfo {
   private List<String> colType;    // used for column statistics
   private String partName;  // used for column statistics
   private boolean isTblLvl; // used for column statistics
+
 
   /**
    * ClusterBy is a short name for both DistributeBy and SortBy.
@@ -86,6 +90,8 @@ public class QBParseInfo {
    */
   private final HashMap<String, ArrayList<ASTNode>> aliasToLateralViews;
 
+  private final HashMap<String, ASTNode> destToLateralView;
+
   /* Order by clause */
   private final HashMap<String, ASTNode> destToOrderby;
   private final HashMap<String, Integer> destToLimit;
@@ -95,6 +101,10 @@ public class QBParseInfo {
   private final LinkedHashMap<String, LinkedHashMap<String, ASTNode>> destToAggregationExprs;
   private final HashMap<String, List<ASTNode>> destToDistinctFuncExprs;
 
+  // used by Windowing
+  private final LinkedHashMap<String, LinkedHashMap<String, ASTNode>> destToWindowingExprs;
+
+
   @SuppressWarnings("unused")
   private static final Log LOG = LogFactory.getLog(QBParseInfo.class.getName());
 
@@ -103,6 +113,7 @@ public class QBParseInfo {
     nameToDest = new HashMap<String, ASTNode>();
     nameToSample = new HashMap<String, TableSample>();
     exprToColumnAlias = new HashMap<ASTNode, String>();
+    destToLateralView = new HashMap<String, ASTNode>();
     destToSelExpr = new LinkedHashMap<String, ASTNode>();
     destToWhereExpr = new HashMap<String, ASTNode>();
     destToGroupby = new HashMap<String, ASTNode>();
@@ -118,6 +129,7 @@ public class QBParseInfo {
     destGroupingSets = new HashSet<String>();
 
     destToAggregationExprs = new LinkedHashMap<String, LinkedHashMap<String, ASTNode>>();
+    destToWindowingExprs = new LinkedHashMap<String, LinkedHashMap<String, ASTNode>>();
     destToDistinctFuncExprs = new HashMap<String, List<ASTNode>>();
 
     this.alias = alias;
@@ -128,6 +140,14 @@ public class QBParseInfo {
 
     tableSpecs = new HashMap<String, BaseSemanticAnalyzer.tableSpec>();
 
+  }
+
+  /*
+   * If a QB is such that the aggregation expressions need to be handled by
+   * the Windowing PTF; we invoke this function to clear the AggExprs on the dest.
+   */
+  public void clearAggregationExprsForClause(String clause) {
+    destToAggregationExprs.get(clause).clear();
   }
 
   public void setAggregationExprsForClause(String clause,
@@ -155,6 +175,26 @@ public class QBParseInfo {
 
   public HashMap<String, ASTNode> getAggregationExprsForClause(String clause) {
     return destToAggregationExprs.get(clause);
+  }
+
+  public void addWindowingExprToClause(String clause, ASTNode windowingExprNode) {
+    LinkedHashMap<String, ASTNode> windowingExprs = destToWindowingExprs.get(clause);
+    if ( windowingExprs == null ) {
+      windowingExprs = new LinkedHashMap<String, ASTNode>();
+      destToWindowingExprs.put(clause, windowingExprs);
+    }
+    windowingExprs.put(windowingExprNode.toStringTree(), windowingExprNode);
+  }
+
+  public HashMap<String, ASTNode> getWindowingExprsForClause(String clause) {
+    return destToWindowingExprs.get(clause);
+  }
+
+  public void clearDistinctFuncExprsForClause(String clause) {
+    List<ASTNode> l = destToDistinctFuncExprs.get(clause);
+    if ( l != null ) {
+      l.clear();
+    }
   }
 
   public void setDistinctFuncExprsForClause(String clause, List<ASTNode> ast) {
@@ -515,6 +555,9 @@ public class QBParseInfo {
     return nameToSample;
   }
 
+  public HashMap<String, ASTNode> getDestToLateralView() {
+    return destToLateralView;
+  }
 
   protected static enum ClauseType {
     CLUSTER_BY_CLAUSE,
@@ -562,4 +605,34 @@ public class QBParseInfo {
   public void setColType(List<String> colType) {
     this.colType = colType;
   }
+
+  /**
+   * @return the isNoScanAnalyzeCommand
+   */
+  public boolean isNoScanAnalyzeCommand() {
+    return isNoScanAnalyzeCommand;
+  }
+
+  /**
+   * @param isNoScanAnalyzeCommand the isNoScanAnalyzeCommand to set
+   */
+  public void setNoScanAnalyzeCommand(boolean isNoScanAnalyzeCommand) {
+    this.isNoScanAnalyzeCommand = isNoScanAnalyzeCommand;
+  }
+
+  /**
+   * @return the isPartialScanAnalyzeCommand
+   */
+  public boolean isPartialScanAnalyzeCommand() {
+    return isPartialScanAnalyzeCommand;
+  }
+
+  /**
+   * @param isPartialScanAnalyzeCommand the isPartialScanAnalyzeCommand to set
+   */
+  public void setPartialScanAnalyzeCommand(boolean isPartialScanAnalyzeCommand) {
+    this.isPartialScanAnalyzeCommand = isPartialScanAnalyzeCommand;
+  }
 }
+
+

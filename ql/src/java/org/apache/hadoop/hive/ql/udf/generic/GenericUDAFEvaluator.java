@@ -18,6 +18,10 @@
 
 package org.apache.hadoop.hive.ql.udf.generic;
 
+import java.io.Closeable;
+import java.io.IOException;
+
+import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -35,7 +39,20 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
  * array<int>, array<array<int>> and so on (arbitrary levels of nesting).
  */
 @UDFType(deterministic = true)
-public abstract class GenericUDAFEvaluator {
+public abstract class GenericUDAFEvaluator implements Closeable {
+
+  public static @interface AggregationType {
+    boolean estimable() default false;
+  }
+
+  public static boolean isEstimable(AggregationBuffer buffer) {
+    if (buffer instanceof AbstractAggregationBuffer) {
+      Class<? extends AggregationBuffer> clazz = buffer.getClass();
+      AggregationType annotation = clazz.getAnnotation(AggregationType.class);
+      return annotation != null && annotation.estimable();
+    }
+    return false;
+  }
 
   /**
    * Mode.
@@ -70,6 +87,15 @@ public abstract class GenericUDAFEvaluator {
    * The constructor.
    */
   public GenericUDAFEvaluator() {
+  }
+
+  /**
+   * Additionally setup GenericUDAFEvaluator with MapredContext before initializing.
+   * This is only called in runtime of MapRedTask.
+   *
+   * @param context context
+   */
+  public void configure(MapredContext mapredContext) {
   }
 
   /**
@@ -110,9 +136,20 @@ public abstract class GenericUDAFEvaluator {
    * 
    * In the future, we may completely hide this class inside the Evaluator and
    * use integer numbers to identify which aggregation we are looking at.
+   *
+   * @deprecated use {@link AbstractAggregationBuffer} instead
    */
   public static interface AggregationBuffer {
   };
+
+  public static abstract class AbstractAggregationBuffer implements AggregationBuffer {
+    /**
+     * Estimate the size of memory which is occupied by aggregation buffer.
+     * Currently, hive assumes that primitives types occupies 16 byte and java object has
+     * 64 byte overhead for each. For map, each entry also has 64 byte overhead.
+     */
+    public int estimate() { return -1; }
+  }
 
   /**
    * Get a new aggregation object.
@@ -124,6 +161,13 @@ public abstract class GenericUDAFEvaluator {
    * aggregation.
    */
   public abstract void reset(AggregationBuffer agg) throws HiveException;
+
+  /**
+   * Close GenericUDFEvaluator.
+   * This is only called in runtime of MapRedTask.
+   */
+  public void close() throws IOException {
+  }
 
   /**
    * This function will be called by GroupByOperator when it sees a new input

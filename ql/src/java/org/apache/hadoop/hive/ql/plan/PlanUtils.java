@@ -59,6 +59,7 @@ import org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.mapred.InputFormat;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
@@ -97,6 +98,56 @@ public final class PlanUtils {
     } catch (HiveException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  public static TableDesc getDefaultTableDesc(CreateTableDesc localDirectoryDesc,
+      String cols, String colTypes ) {
+    TableDesc tableDesc = getDefaultTableDesc(Integer.toString(Utilities.ctrlaCode), cols,
+        colTypes, false);;
+    if (localDirectoryDesc == null) {
+      return tableDesc;
+    }
+
+    try {
+      if (localDirectoryDesc.getFieldDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.FIELD_DELIM, localDirectoryDesc.getFieldDelim());
+        tableDesc.getProperties().setProperty(
+            serdeConstants.SERIALIZATION_FORMAT, localDirectoryDesc.getFieldDelim());
+      }
+      if (localDirectoryDesc.getLineDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.LINE_DELIM, localDirectoryDesc.getLineDelim());
+      }
+      if (localDirectoryDesc.getCollItemDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.COLLECTION_DELIM, localDirectoryDesc.getCollItemDelim());
+      }
+      if (localDirectoryDesc.getMapKeyDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.MAPKEY_DELIM, localDirectoryDesc.getMapKeyDelim());
+      }
+      if (localDirectoryDesc.getFieldEscape() !=null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.ESCAPE_CHAR, localDirectoryDesc.getFieldEscape());
+      }
+      if (localDirectoryDesc.getSerName() != null) {
+        tableDesc.setSerdeClassName(localDirectoryDesc.getSerName());
+        tableDesc.getProperties().setProperty(
+            serdeConstants.SERIALIZATION_LIB, localDirectoryDesc.getSerName());
+        tableDesc.setDeserializerClass(
+            (Class<? extends Deserializer>) Class.forName(localDirectoryDesc.getSerName()));
+      }
+      if (localDirectoryDesc.getOutputFormat() != null){
+          tableDesc.setOutputFileFormatClass(Class.forName(localDirectoryDesc.getOutputFormat()));
+      }
+    } catch (ClassNotFoundException e) {
+      // mimicking behaviour in CreateTableDesc tableDesc creation
+      // returning null table description for output.
+      e.printStackTrace();
+      return null;
+    }
+    return tableDesc;
   }
 
   /**
@@ -302,8 +353,8 @@ public final class PlanUtils {
     return new TableDesc(MetadataTypedColumnsetSerDe.class,
         TextInputFormat.class, IgnoreKeyTextOutputFormat.class, Utilities
         .makeProperties(
-        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_FORMAT,
-        separatorCode));
+            org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_FORMAT,
+            separatorCode));
   }
 
   /**
@@ -400,7 +451,7 @@ public final class PlanUtils {
       }
       unionTypes.add(TypeInfoFactory.getStructTypeInfo(names, types));
     }
-    if (cols.size() - length > 0) {
+    if (outputColumnNames.size() - length > 0) {
       schemas.add(MetaStoreUtils.getFieldSchemaFromTypeInfo(
           fieldPrefix + outputColumnNames.get(length),
           TypeInfoFactory.getUnionTypeInfo(unionTypes)));
@@ -547,9 +598,12 @@ public final class PlanUtils {
     ArrayList<String> outputKeyCols = new ArrayList<String>();
     ArrayList<String> outputValCols = new ArrayList<String>();
     if (includeKeyCols) {
-      keyTable = getReduceKeyTableDesc(getFieldSchemasFromColumnListWithLength(
-          keyCols, distinctColIndices, outputKeyColumnNames, numKeys, ""),
-          order);
+      List<FieldSchema> keySchema = getFieldSchemasFromColumnListWithLength(
+          keyCols, distinctColIndices, outputKeyColumnNames, numKeys, "");
+      if (order.length() < outputKeyColumnNames.size()) {
+        order = order + "+";
+      }
+      keyTable = getReduceKeyTableDesc(keySchema, order);
       outputKeyCols.addAll(outputKeyColumnNames);
     } else {
       keyTable = getReduceKeyTableDesc(getFieldSchemasFromColumnList(
@@ -723,6 +777,19 @@ public final class PlanUtils {
       }
     } catch (HiveException ex) {
       throw new RuntimeException(ex);
+    }
+  }
+
+  public static void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
+    String handlerClass = tableDesc.getProperties().getProperty(
+        org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_STORAGE);
+    try {
+      HiveStorageHandler storageHandler = HiveUtils.getStorageHandler(jobConf, handlerClass);
+      if (storageHandler != null) {
+        storageHandler.configureJobConf(tableDesc, jobConf);
+      }
+    } catch (HiveException e) {
+      throw new RuntimeException(e);
     }
   }
 

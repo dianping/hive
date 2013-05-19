@@ -30,15 +30,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.ql.Context;
-import org.apache.hadoop.hive.ql.ErrorMsg;
-import org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ConditionalTask;
 import org.apache.hadoop.hive.ql.exec.DependencyCollectionTask;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
-import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
-import org.apache.hadoop.hive.ql.exec.MapRedTask;
 import org.apache.hadoop.hive.ql.exec.MoveTask;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorFactory;
@@ -52,28 +49,18 @@ import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
-import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRMapJoinCtx;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
-import org.apache.hadoop.hive.ql.parse.RowResolver;
-import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
-import org.apache.hadoop.hive.ql.parse.TypeCheckProcFactory;
 import org.apache.hadoop.hive.ql.plan.ConditionalResolverMergeFiles;
 import org.apache.hadoop.hive.ql.plan.ConditionalResolverMergeFiles.ConditionalResolverMergeFilesCtx;
 import org.apache.hadoop.hive.ql.plan.ConditionalWork;
 import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx;
-import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
-import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
-import org.apache.hadoop.hive.ql.plan.ExtractDesc;
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.LoadFileDesc;
-import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.MoveWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
-import org.apache.hadoop.hive.ql.plan.PlanUtils;
-import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.apache.hadoop.hive.ql.plan.StatsWork;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
@@ -110,6 +97,9 @@ public class GenMRFileSink1 implements NodeProcessor {
         parseCtx.getQB().getParseInfo().isInsertToTable();
     HiveConf hconf = parseCtx.getConf();
 
+    // Mark this task as a final map reduce task (ignoring the optional merge task)
+    ((MapredWork)currTask.getWork()).setFinalMapRed(true);
+
     // If this file sink desc has been processed due to a linked file sink desc,
     // use that task
     Map<FileSinkDesc, Task<? extends Serializable>> fileSinkDescs = ctx.getLinkedFileDescTasks();
@@ -132,8 +122,7 @@ public class GenMRFileSink1 implements NodeProcessor {
         // no need of merging if the move is to a local file system
         MoveTask mvTask = (MoveTask) findMoveTask(mvTasks, fsOp);
 
-        if (isInsertTable &&
-            hconf.getBoolVar(HiveConf.ConfVars.HIVESTATSAUTOGATHER)) {
+        if (isInsertTable && hconf.getBoolVar(ConfVars.HIVESTATSAUTOGATHER)) {
           addStatsTask(fsOp, mvTask, currTask, parseCtx.getConf());
         }
 
@@ -143,8 +132,8 @@ public class GenMRFileSink1 implements NodeProcessor {
             // number of reducers are few, so the number of files anyway are small.
             // However, with this optimization, we are increasing the number of files
             // possibly by a big margin. So, merge aggresively.
-            if (hconf.getBoolVar(HiveConf.ConfVars.HIVEMERGEMAPFILES) ||
-                hconf.getBoolVar(HiveConf.ConfVars.HIVEMERGEMAPREDFILES)) {
+            if (hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) ||
+                hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES)) {
               chDir = true;
             }
           } else {
@@ -153,10 +142,9 @@ public class GenMRFileSink1 implements NodeProcessor {
               // or for a map-reduce job
               MapredWork currWork = (MapredWork) currTask.getWork();
               boolean mergeMapOnly =
-                  hconf.getBoolVar(HiveConf.ConfVars.HIVEMERGEMAPFILES) &&
-                      currWork.getReducer() == null;
+                  hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) && currWork.getReducer() == null;
               boolean mergeMapRed =
-                  hconf.getBoolVar(HiveConf.ConfVars.HIVEMERGEMAPREDFILES) &&
+                  hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES) &&
                       currWork.getReducer() != null;
               if (mergeMapOnly || mergeMapRed) {
                 chDir = true;
@@ -166,11 +154,13 @@ public class GenMRFileSink1 implements NodeProcessor {
       }
     }
 
-    String finalName = processFS(nd, stack, opProcCtx, chDir);
+    String finalName = processFS(fsOp, stack, opProcCtx, chDir);
 
-    // need to merge the files in the destination table/partitions
-    if (chDir && (finalName != null)) {
-      createMergeJob((FileSinkOperator) nd, ctx, finalName);
+    if (chDir) {
+      // Merge the files in the destination table/partitions by creating Map-only merge job
+      // If underlying data is RCFile a RCFileBlockMerge task would be created.
+      LOG.info("using CombineHiveInputformat for the merge job");
+      createMRWorkForMergingFiles(fsOp, ctx, finalName);
     }
 
     FileSinkDesc fileSinkDesc = fsOp.getConf();
@@ -214,7 +204,9 @@ public class GenMRFileSink1 implements NodeProcessor {
           (MapredWork) currTask.getWork(), false, ctx);
       }
 
-      if (!rootTasks.contains(currTask)) {
+      if (!rootTasks.contains(currTask)
+          && (currTask.getParentTasks() == null
+              || currTask.getParentTasks().isEmpty())) {
         rootTasks.add(currTask);
       }
     }
@@ -249,7 +241,7 @@ public class GenMRFileSink1 implements NodeProcessor {
       statsWork = new StatsWork(mvWork.getLoadFileWork());
     }
     assert statsWork != null : "Error when genereting StatsTask";
-    statsWork.setStatsReliable(hconf.getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
+    statsWork.setStatsReliable(hconf.getBoolVar(ConfVars.HIVE_STATS_RELIABLE));
     MapredWork mrWork = (MapredWork) currTask.getWork();
 
     // AggKey in StatsWork is used for stats aggregation while StatsAggPrefix
@@ -260,9 +252,9 @@ public class GenMRFileSink1 implements NodeProcessor {
     // mark the MapredWork and FileSinkOperator for gathering stats
     nd.getConf().setGatherStats(true);
     mrWork.setGatheringStats(true);
-    nd.getConf().setStatsReliable(hconf.getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
+    nd.getConf().setStatsReliable(hconf.getBoolVar(ConfVars.HIVE_STATS_RELIABLE));
     nd.getConf().setMaxStatsKeyPrefixLength(
-        hconf.getIntVar(HiveConf.ConfVars.HIVE_STATS_KEY_PREFIX_MAX_LENGTH));
+        hconf.getIntVar(ConfVars.HIVE_STATS_KEY_PREFIX_MAX_LENGTH));
     // mrWork.addDestinationTable(nd.getConf().getTableInfo().getTableName());
 
     // subscribe feeds from the MoveTask so that MoveTask can forward the list
@@ -271,119 +263,14 @@ public class GenMRFileSink1 implements NodeProcessor {
     statsTask.subscribeFeed(mvTask);
   }
 
-  private void createMapReduce4Merge(FileSinkOperator fsOp, GenMRProcContext ctx, String finalName)
-      throws SemanticException {
-    Task<? extends Serializable> currTask = ctx.getCurrTask();
-    RowSchema inputRS = fsOp.getSchema();
-
-    // create a reduce Sink operator - key is the first column
-    ArrayList<ExprNodeDesc> keyCols = new ArrayList<ExprNodeDesc>();
-    keyCols.add(TypeCheckProcFactory.DefaultExprProcessor
-        .getFuncExprNodeDesc("rand"));
-
-    // value is all the columns in the FileSink operator input
-    ArrayList<ExprNodeDesc> valueCols = new ArrayList<ExprNodeDesc>();
-    for (ColumnInfo ci : inputRS.getSignature()) {
-      valueCols.add(new ExprNodeColumnDesc(ci.getType(), ci.getInternalName(),
-          ci.getTabAlias(), ci.getIsVirtualCol(), ci.isSkewedCol()));
-    }
-
-    // create a dummy tableScan operator
-    Operator<? extends OperatorDesc> tsMerge = OperatorFactory.get(
-        TableScanDesc.class, inputRS);
-
-    ArrayList<String> outputColumns = new ArrayList<String>();
-    for (int i = 0; i < valueCols.size(); i++) {
-      outputColumns.add(SemanticAnalyzer.getColumnInternalName(i));
-    }
-
-    ReduceSinkDesc rsDesc = PlanUtils.getReduceSinkDesc(
-        new ArrayList<ExprNodeDesc>(), valueCols, outputColumns, false, -1, -1,
-        -1);
-    OperatorFactory.getAndMakeChild(rsDesc, inputRS, tsMerge);
-    ParseContext parseCtx = ctx.getParseCtx();
-    FileSinkDesc fsConf = fsOp.getConf();
-
-    // Add the extract operator to get the value fields
-    RowResolver out_rwsch = new RowResolver();
-    RowResolver interim_rwsch = ctx.getParseCtx().getOpParseCtx().get(fsOp).getRowResolver();
-    Integer pos = Integer.valueOf(0);
-    for (ColumnInfo colInfo : interim_rwsch.getColumnInfos()) {
-      String[] info = interim_rwsch.reverseLookup(colInfo.getInternalName());
-      out_rwsch.put(info[0], info[1], new ColumnInfo(pos.toString(), colInfo
-          .getType(), info[0], colInfo.getIsVirtualCol(), colInfo.isHiddenVirtualCol()));
-      pos = Integer.valueOf(pos.intValue() + 1);
-    }
-
-    Operator<ExtractDesc> extract = OperatorFactory.getAndMakeChild(new ExtractDesc(
-        new ExprNodeColumnDesc(TypeInfoFactory.stringTypeInfo,
-            Utilities.ReduceField.VALUE.toString(), "", false)),
-        new RowSchema(out_rwsch.getColumnInfos()));
-
-    TableDesc ts = (TableDesc) fsConf.getTableInfo().clone();
-    fsConf.getTableInfo().getProperties().remove(
-        org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS);
-
-    FileSinkDesc newFSD = new FileSinkDesc(finalName, ts, parseCtx.getConf()
-        .getBoolVar(HiveConf.ConfVars.COMPRESSRESULT));
-    FileSinkOperator newOutput = (FileSinkOperator) OperatorFactory.
-        getAndMakeChild(newFSD, inputRS, extract);
-
-    HiveConf conf = parseCtx.getConf();
-    MapredWork cplan = createMergeTask(conf, tsMerge, fsConf);
-    cplan.setReducer(extract);
-
-    // NOTE: we should gather stats in MR1 (rather than the merge MR job)
-    // since it is unknown if the merge MR will be triggered at execution time.
-
-    MoveWork dummyMv = new MoveWork(null, null, null,
-        new LoadFileDesc(fsConf.getFinalDirName(), finalName, true, null, null), false);
-
-    ConditionalTask cndTsk = createCondTask(conf, currTask, dummyMv, cplan,
-        fsConf.getFinalDirName());
-
-    linkMoveTask(ctx, newOutput, cndTsk);
-  }
-
   /**
-   * Create a MapReduce job for a particular partition if Hadoop version is pre 0.20,
-   * otherwise create a Map-only job using CombineHiveInputFormat for all partitions.
-   *
-   * @param fsOp
-   *          The FileSink operator.
-   * @param ctx
-   *          The MR processing context.
-   * @param finalName
-   *          the final destination path the merge job should output.
+   * @param fsInput The FileSink operator.
+   * @param ctx The MR processing context.
+   * @param finalName the final destination path the merge job should output.
    * @throws SemanticException
-   */
-  private void createMergeJob(FileSinkOperator fsOp, GenMRProcContext ctx, String finalName)
-      throws SemanticException {
 
-    // if the hadoop version support CombineFileInputFormat (version >= 0.20),
-    // create a Map-only job for merge, otherwise create a MapReduce merge job.
-    ParseContext parseCtx = ctx.getParseCtx();
-    HiveConf conf = parseCtx.getConf();
-    if (conf.getBoolVar(HiveConf.ConfVars.HIVEMERGEMAPONLY) &&
-        Utilities.supportCombineFileInputFormat()) {
-      // create Map-only merge job
-      createMap4Merge(fsOp, ctx, finalName);
-      LOG.info("use CombineHiveInputformat for the merge job");
-    } else {
-      if (fsOp.getConf().getDynPartCtx() != null) {
-        throw new SemanticException(ErrorMsg.DYNAMIC_PARTITION_MERGE.getMsg());
-      }
-      createMapReduce4Merge(fsOp, ctx, finalName);
-      LOG.info("use HiveInputFormat for the merge job");
-    }
-  }
-
-  /**
-   * create a Map-only merge job with the following operators:
-   *
-   * @param fsInput
-   * @param ctx
-   * @param finalName
+   * create a Map-only merge job using CombineHiveInputFormat for all partitions with
+   * following operators:
    *          MR job J0:
    *          ...
    *          |
@@ -408,13 +295,13 @@ public class GenMRFileSink1 implements NodeProcessor {
    *          directories.
    *
    */
-  private void createMap4Merge(FileSinkOperator fsInput, GenMRProcContext ctx, String finalName)
-      throws SemanticException {
+  private void createMRWorkForMergingFiles (FileSinkOperator fsInput, GenMRProcContext ctx,
+   String finalName) throws SemanticException {
 
     //
     // 1. create the operator tree
     //
-    ParseContext parseCtx = ctx.getParseCtx();
+    HiveConf conf = ctx.getParseCtx().getConf();
     FileSinkDesc fsInputDesc = fsInput.getConf();
 
     // Create a TableScan operator
@@ -425,9 +312,9 @@ public class GenMRFileSink1 implements NodeProcessor {
     // Create a FileSink operator
     TableDesc ts = (TableDesc) fsInputDesc.getTableInfo().clone();
     FileSinkDesc fsOutputDesc = new FileSinkDesc(finalName, ts,
-        parseCtx.getConf().getBoolVar(HiveConf.ConfVars.COMPRESSRESULT));
+      conf.getBoolVar(ConfVars.COMPRESSRESULT));
     FileSinkOperator fsOutput = (FileSinkOperator) OperatorFactory.getAndMakeChild(
-        fsOutputDesc, inputRS, tsMerge);
+      fsOutputDesc, inputRS, tsMerge);
 
     // If the input FileSinkOperator is a dynamic partition enabled, the tsMerge input schema
     // needs to include the partition column, and the fsOutput should have
@@ -468,19 +355,15 @@ public class GenMRFileSink1 implements NodeProcessor {
     //
     // 2. Constructing a conditional task consisting of a move task and a map reduce task
     //
-    MapRedTask currTask = (MapRedTask) ctx.getCurrTask();
     MoveWork dummyMv = new MoveWork(null, null, null,
         new LoadFileDesc(fsInputDesc.getFinalDirName(), finalName, true, null, null), false);
     MapredWork cplan;
 
-    if (parseCtx.getConf().getBoolVar(HiveConf.ConfVars.
-        HIVEMERGERCFILEBLOCKLEVEL) &&
-        fsInputDesc.getTableInfo().getInputFileFormatClass().
-            equals(RCFileInputFormat.class)) {
+    if (conf.getBoolVar(ConfVars.HIVEMERGERCFILEBLOCKLEVEL) &&
+        fsInputDesc.getTableInfo().getInputFileFormatClass().equals(RCFileInputFormat.class)) {
 
       // Check if InputFormatClass is valid
-      String inputFormatClass = parseCtx.getConf().
-          getVar(HiveConf.ConfVars.HIVEMERGEINPUTFORMATBLOCKLEVEL);
+      String inputFormatClass = conf.getVar(ConfVars.HIVEMERGEINPUTFORMATBLOCKLEVEL);
       try {
         Class c = (Class<? extends InputFormat>) Class.forName(inputFormatClass);
 
@@ -493,13 +376,13 @@ public class GenMRFileSink1 implements NodeProcessor {
       }
 
     } else {
-      cplan = createMergeTask(ctx.getConf(), tsMerge, fsInputDesc);
+      cplan = createMRWorkForMergingFiles(conf, tsMerge, fsInputDesc);
       // use CombineHiveInputFormat for map-only merging
     }
     cplan.setInputformat("org.apache.hadoop.hive.ql.io.CombineHiveInputFormat");
     // NOTE: we should gather stats in MR1 rather than MR2 at merge job since we don't
     // know if merge MR2 will be triggered at execution time
-    ConditionalTask cndTsk = createCondTask(ctx.getConf(), ctx.getCurrTask(), dummyMv, cplan,
+    ConditionalTask cndTsk = createCondTask(conf, ctx.getCurrTask(), dummyMv, cplan,
         fsInputDesc.getFinalDirName());
 
     // keep the dynamic partition context in conditional task resolver context
@@ -568,9 +451,7 @@ public class GenMRFileSink1 implements NodeProcessor {
       Task<? extends Serializable> parentTask) {
 
     if (mvTask != null) {
-      if (ctx.getConf().getBoolVar(
-          HiveConf.ConfVars.HIVE_MULTI_INSERT_MOVE_TASKS_SHARE_DEPENDENCIES)) {
-
+      if (ctx.getConf().getBoolVar(ConfVars.HIVE_MULTI_INSERT_MOVE_TASKS_SHARE_DEPENDENCIES)) {
         DependencyCollectionTask dependencyTask = ctx.getDependencyTaskForMultiInsert();
         parentTask.addDependentTask(dependencyTask);
         if (mvTask.getWork().getLoadTableWork() != null) {
@@ -602,8 +483,8 @@ public class GenMRFileSink1 implements NodeProcessor {
    *          the last FileSinkOperator in the parent MapReduce work
    * @return the MapredWork
    */
-  private MapredWork createMergeTask(HiveConf conf, Operator<? extends OperatorDesc> topOp,
-      FileSinkDesc fsDesc) {
+  private MapredWork createMRWorkForMergingFiles (HiveConf conf,
+    Operator<? extends OperatorDesc> topOp,  FileSinkDesc fsDesc) {
 
     ArrayList<String> aliases = new ArrayList<String>();
     String inputDir = fsDesc.getFinalDirName();
@@ -760,7 +641,7 @@ public class GenMRFileSink1 implements NodeProcessor {
   /**
    * Process the FileSink operator to generate a MoveTask if necessary.
    *
-   * @param nd
+   * @param fsOp
    *          current FileSink operator
    * @param stack
    *          parent operators
@@ -771,15 +652,8 @@ public class GenMRFileSink1 implements NodeProcessor {
    * @return the final file name to which the FileSinkOperator should store.
    * @throws SemanticException
    */
-  private String processFS(Node nd, Stack<Node> stack,
+  private String processFS(FileSinkOperator fsOp, Stack<Node> stack,
       NodeProcessorCtx opProcCtx, boolean chDir) throws SemanticException {
-
-    // Is it the dummy file sink after the mapjoin
-    FileSinkOperator fsOp = (FileSinkOperator) nd;
-    if ((fsOp.getParentOperators().size() == 1)
-        && (fsOp.getParentOperators().get(0) instanceof MapJoinOperator)) {
-      return null;
-    }
 
     GenMRProcContext ctx = (GenMRProcContext) opProcCtx;
     List<FileSinkOperator> seenFSOps = ctx.getSeenFileSinkOps();
@@ -849,7 +723,9 @@ public class GenMRFileSink1 implements NodeProcessor {
               (MapredWork) currTask.getWork(), false, ctx);
         }
         opTaskMap.put(null, currTask);
-        if (!rootTasks.contains(currTask)) {
+        if (!rootTasks.contains(currTask)
+            && (currTask.getParentTasks() == null
+                || currTask.getParentTasks().isEmpty())) {
           rootTasks.add(currTask);
         }
       } else {
@@ -862,7 +738,7 @@ public class GenMRFileSink1 implements NodeProcessor {
           if (currUnionOp != null) {
             opTaskMap.put(null, currTask);
             ctx.setCurrTopOp(null);
-            GenMapRedUtils.initUnionPlan(ctx, currTask, false);
+            GenMapRedUtils.initUnionPlan(ctx, currUnionOp, currTask, false);
             return dest;
           }
         }
@@ -880,25 +756,7 @@ public class GenMRFileSink1 implements NodeProcessor {
 
     if (currUnionOp != null) {
       opTaskMap.put(null, currTask);
-      GenMapRedUtils.initUnionPlan(ctx, currTask, false);
-      return dest;
-    }
-
-    AbstractMapJoinOperator<? extends MapJoinDesc> currMapJoinOp = ctx.getCurrMapJoinOp();
-
-    if (currMapJoinOp != null) {
-      opTaskMap.put(null, currTask);
-      GenMRMapJoinCtx mjCtx = ctx.getMapJoinCtx(currMapJoinOp);
-      MapredWork plan = (MapredWork) currTask.getWork();
-
-      String taskTmpDir = mjCtx.getTaskTmpDir();
-      TableDesc tt_desc = mjCtx.getTTDesc();
-      assert plan.getPathToAliases().get(taskTmpDir) == null;
-      plan.getPathToAliases().put(taskTmpDir, new ArrayList<String>());
-      plan.getPathToAliases().get(taskTmpDir).add(taskTmpDir);
-      plan.getPathToPartitionInfo().put(taskTmpDir,
-          new PartitionDesc(tt_desc, null));
-      plan.getAliasToWork().put(taskTmpDir, mjCtx.getRootMapJoinOp());
+      GenMapRedUtils.initUnionPlan(ctx, currUnionOp, currTask, false);
       return dest;
     }
 

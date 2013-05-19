@@ -28,12 +28,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
-import org.apache.hadoop.hive.serde2.io.BigDecimalWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -43,7 +43,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.BigDecimalObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
@@ -67,7 +67,7 @@ import org.apache.hadoop.io.Writable;
  * deserialized until required. Binary means a field is serialized in binary
  * compact format.
  */
-public class LazyBinarySerDe implements SerDe {
+public class LazyBinarySerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(LazyBinarySerDe.class
       .getName());
@@ -386,8 +386,8 @@ public class LazyBinarySerDe implements SerDe {
       }
 
       case DECIMAL: {
-        BigDecimalObjectInspector bdoi = (BigDecimalObjectInspector) poi;
-        BigDecimalWritable t = bdoi.getPrimitiveWritableObject(obj);
+        HiveDecimalObjectInspector bdoi = (HiveDecimalObjectInspector) poi;
+        HiveDecimalWritable t = bdoi.getPrimitiveWritableObject(obj);
         t.writeToByteStream(byteStream);
         return warnedOnceNullMapKey;
       }

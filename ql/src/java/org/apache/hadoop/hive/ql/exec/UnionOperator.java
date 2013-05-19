@@ -148,4 +148,27 @@ public class UnionOperator extends Operator<UnionDesc> implements Serializable {
   public OperatorType getType() {
     return OperatorType.UNION;
   }
+
+  /**
+   * Union operators are not allowed either before or after a explicit mapjoin hint.
+   * Note that, the same query would just work without the mapjoin hint (by setting
+   * hive.auto.convert.join to true).
+   **/
+  @Override
+  public boolean opAllowedBeforeMapJoin() {
+    return false;
+  }
+
+  @Override
+  public boolean opAllowedAfterMapJoin() {
+    return false;
+  }
+
+  @Override
+  public boolean opAllowedBeforeSortMergeJoin() {
+    // If a union occurs before the sort-merge join, it is not useful to convert the the
+    // sort-merge join to a mapjoin. The number of inputs for the union is more than 1 so
+    // it would be difficult to figure out the big table for the mapjoin.
+    return false;
+  }
 }

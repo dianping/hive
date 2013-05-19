@@ -347,6 +347,17 @@ public interface IMetaStoreClient {
       List<String> partVals) throws NoSuchObjectException, MetaException, TException;
 
   /**
+   * @param partition
+   * @param destdb
+   * @param destTableName
+   * @return partition object
+   */
+  public Partition exchange_partition(Map<String, String> partitionSpecs,
+      String sourceDb, String sourceTable, String destdb,
+      String destTableName) throws MetaException, NoSuchObjectException,
+      InvalidObjectException, TException;
+
+  /**
    * @param dbName
    * @param tblName
    * @param name - partition name i.e. 'ds=2010-02-03/ts=2010-02-03 18%3A16%3A01'
@@ -489,6 +500,15 @@ public interface IMetaStoreClient {
   public boolean isPartitionMarkedForEvent(String db_name, String tbl_name, Map<String,String> partKVs,
       PartitionEventType eventType) throws MetaException, NoSuchObjectException, TException,
       UnknownTableException, UnknownDBException, UnknownPartitionException, InvalidPartitionException;
+
+  /**
+   * @param partVals
+   * @throws TException
+   * @throws MetaException
+   */
+  public void validatePartitionNameCharacters(List<String> partVals)
+      throws TException, MetaException;
+
 
   /**
    * @param tbl

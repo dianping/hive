@@ -35,13 +35,13 @@ public class GroupByDesc extends AbstractOperatorDesc {
    * PARTIAL1: partial aggregation - first phase: iterate, terminatePartial
    * PARTIAL2: partial aggregation - second phase: merge, terminatePartial
    * PARTIALS: For non-distinct the same as PARTIAL2, for distinct the same as
-   *           PARTIAL1
+   * PARTIAL1
    * FINAL: partial aggregation - final phase: merge, terminate
    * HASH: For non-distinct the same as PARTIAL1 but use hash-table-based aggregation
    * MERGEPARTIAL: FINAL for non-distinct aggregations, COMPLETE for distinct
    * aggregations.
    */
-  private static final long serialVersionUID = 1L;
+  private static long serialVersionUID = 1L;
 
   /**
    * Mode.
@@ -65,6 +65,8 @@ public class GroupByDesc extends AbstractOperatorDesc {
   private ArrayList<java.lang.String> outputColumnNames;
   private float groupByMemoryUsage;
   private float memoryThreshold;
+  transient private boolean isDistinct;
+  private boolean dontResetAggrsDistinct;
 
   public GroupByDesc() {
   }
@@ -79,10 +81,11 @@ public class GroupByDesc extends AbstractOperatorDesc {
       final float memoryThreshold,
       final List<Integer> listGroupingSets,
       final boolean groupingSetsPresent,
-      final int groupingSetsPosition) {
+      final int groupingSetsPosition,
+      final boolean isDistinct) {
     this(mode, outputColumnNames, keys, aggregators, groupKeyNotReductionKey,
-      false, groupByMemoryUsage, memoryThreshold, listGroupingSets,
-      groupingSetsPresent, groupingSetsPosition);
+        false, groupByMemoryUsage, memoryThreshold, listGroupingSets,
+        groupingSetsPresent, groupingSetsPosition, isDistinct);
   }
 
   public GroupByDesc(
@@ -96,7 +99,8 @@ public class GroupByDesc extends AbstractOperatorDesc {
       final float memoryThreshold,
       final List<Integer> listGroupingSets,
       final boolean groupingSetsPresent,
-      final int groupingSetsPosition) {
+      final int groupingSetsPosition,
+      final boolean isDistinct) {
     this.mode = mode;
     this.outputColumnNames = outputColumnNames;
     this.keys = keys;
@@ -108,6 +112,7 @@ public class GroupByDesc extends AbstractOperatorDesc {
     this.listGroupingSets = listGroupingSets;
     this.groupingSetsPresent = groupingSetsPresent;
     this.groupingSetPosition = groupingSetsPosition;
+    this.isDistinct = isDistinct;
   }
 
   public Mode getMode() {
@@ -208,11 +213,11 @@ public class GroupByDesc extends AbstractOperatorDesc {
    */
   public boolean isDistinctLike() {
     ArrayList<AggregationDesc> aggregators = getAggregators();
-    for(AggregationDesc ad: aggregators){
-      if(!ad.getDistinct()) {
+    for (AggregationDesc ad : aggregators) {
+      if (!ad.getDistinct()) {
         GenericUDAFEvaluator udafEval = ad.getGenericUDAFEvaluator();
         UDFType annot = udafEval.getClass().getAnnotation(UDFType.class);
-        if(annot == null || !annot.distinctLike()) {
+        if (annot == null || !annot.distinctLike()) {
           return false;
         }
       }
@@ -248,5 +253,21 @@ public class GroupByDesc extends AbstractOperatorDesc {
 
   public void setGroupingSetPosition(int groupingSetPosition) {
     this.groupingSetPosition = groupingSetPosition;
+  }
+
+  public boolean isDistinct() {
+    return isDistinct;
+  }
+
+  public void setDistinct(boolean isDistinct) {
+    this.isDistinct = isDistinct;
+  }
+
+  public boolean isDontResetAggrsDistinct() {
+    return dontResetAggrsDistinct;
+  }
+
+  public void setDontResetAggrsDistinct(boolean dontResetAggrsDistinct) {
+    this.dontResetAggrsDistinct = dontResetAggrsDistinct;
   }
 }

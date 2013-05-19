@@ -121,7 +121,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcpart
               numFiles 1
-              numPartitions 4
               numRows 0
               partition_columns ds/hr
               rawDataSize 0
@@ -168,7 +167,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcpart
               numFiles 1
-              numPartitions 4
               numRows 0
               partition_columns ds/hr
               rawDataSize 0
@@ -238,12 +236,14 @@ STAGE PLANS:
 PREHOOK: query: insert overwrite table list_bucketing_dynamic_part partition (ds = '2008-04-08', hr)
 select key, value, if(key % 100 == 0, 'a1', 'b1') from srcpart where ds = '2008-04-08'
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 PREHOOK: Output: default@list_bucketing_dynamic_part@ds=2008-04-08
 POSTHOOK: query: insert overwrite table list_bucketing_dynamic_part partition (ds = '2008-04-08', hr)
 select key, value, if(key % 100 == 0, 'a1', 'b1') from srcpart where ds = '2008-04-08'
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Output: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
@@ -294,7 +294,7 @@ Partition Parameters:
 	numFiles            	1                   
 	numRows             	16                  
 	rawDataSize         	136                 
-	totalSize           	204                 
+	totalSize           	4096                
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 
@@ -426,7 +426,7 @@ STAGE PLANS:
                       serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                      totalSize 10780
+                      totalSize 14672
 #### A masked pattern was here ####
                     serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
                     name: default.list_bucketing_dynamic_part
@@ -452,7 +452,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcpart
               numFiles 1
-              numPartitions 4
               numRows 0
               partition_columns ds/hr
               rawDataSize 0
@@ -499,7 +498,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcpart
               numFiles 1
-              numPartitions 4
               numRows 0
               partition_columns ds/hr
               rawDataSize 0
@@ -569,7 +567,7 @@ STAGE PLANS:
                 serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                totalSize 10780
+                totalSize 14672
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
               name: default.list_bucketing_dynamic_part
@@ -603,7 +601,7 @@ STAGE PLANS:
               serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-              totalSize 10780
+              totalSize 14672
 #### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
           
@@ -623,7 +621,7 @@ STAGE PLANS:
                 serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                totalSize 10780
+                totalSize 14672
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
               name: default.list_bucketing_dynamic_part
@@ -655,7 +653,7 @@ STAGE PLANS:
               serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-              totalSize 10780
+              totalSize 14672
 #### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
           
@@ -675,7 +673,7 @@ STAGE PLANS:
                 serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                totalSize 10780
+                totalSize 14672
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
               name: default.list_bucketing_dynamic_part
@@ -693,12 +691,14 @@ STAGE PLANS:
 PREHOOK: query: insert overwrite table list_bucketing_dynamic_part partition (ds = '2008-04-08', hr)
 select key, value, if(key % 100 == 0, 'a1', 'b1') from srcpart where ds = '2008-04-08'
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 PREHOOK: Output: default@list_bucketing_dynamic_part@ds=2008-04-08
 POSTHOOK: query: insert overwrite table list_bucketing_dynamic_part partition (ds = '2008-04-08', hr)
 select key, value, if(key % 100 == 0, 'a1', 'b1') from srcpart where ds = '2008-04-08'
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Output: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
@@ -761,7 +761,7 @@ Partition Parameters:
 	numFiles            	1                   
 	numRows             	16                  
 	rawDataSize         	136                 
-	totalSize           	136                 
+	totalSize           	4096                
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 
@@ -831,11 +831,13 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: select count(1) from srcpart where ds = '2008-04-08'
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 #### A masked pattern was here ####
 POSTHOOK: query: select count(1) from srcpart where ds = '2008-04-08'
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 #### A masked pattern was here ####
@@ -850,11 +852,13 @@ POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).va
 1000
 PREHOOK: query: select count(*) from list_bucketing_dynamic_part
 PREHOOK: type: QUERY
+PREHOOK: Input: default@list_bucketing_dynamic_part
 PREHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
 PREHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=b1
 #### A masked pattern was here ####
 POSTHOOK: query: select count(*) from list_bucketing_dynamic_part
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@list_bucketing_dynamic_part
 POSTHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
 POSTHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=b1
 #### A masked pattern was here ####
@@ -948,14 +952,13 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.list_bucketing_dynamic_part
               numFiles 1
-              numPartitions 2
               numRows 16
               partition_columns ds/hr
               rawDataSize 136
               serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-              totalSize 136
+              totalSize 4096
 #### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
           
@@ -975,7 +978,7 @@ STAGE PLANS:
                 serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                totalSize 10656
+                totalSize 14616
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
               name: default.list_bucketing_dynamic_part
@@ -995,7 +998,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.list_bucketing_dynamic_part
               numFiles 3
-              numPartitions 2
               numRows 984
               partition_columns ds/hr
               rawDataSize 9488
@@ -1022,7 +1024,7 @@ STAGE PLANS:
                 serialization.ddl struct list_bucketing_dynamic_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
-                totalSize 10656
+                totalSize 14616
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
               name: default.list_bucketing_dynamic_part
@@ -1038,11 +1040,13 @@ STAGE PLANS:
 
 PREHOOK: query: select * from list_bucketing_dynamic_part where key = '484' and value = 'val_484'
 PREHOOK: type: QUERY
+PREHOOK: Input: default@list_bucketing_dynamic_part
 PREHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
 PREHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=b1
 #### A masked pattern was here ####
 POSTHOOK: query: select * from list_bucketing_dynamic_part where key = '484' and value = 'val_484'
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@list_bucketing_dynamic_part
 POSTHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=a1
 POSTHOOK: Input: default@list_bucketing_dynamic_part@ds=2008-04-08/hr=b1
 #### A masked pattern was here ####
@@ -1058,11 +1062,13 @@ POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).va
 484	val_484	2008-04-08	b1
 PREHOOK: query: select * from srcpart where ds = '2008-04-08' and key = '484' and value = 'val_484'
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 #### A masked pattern was here ####
 POSTHOOK: query: select * from srcpart where ds = '2008-04-08' and key = '484' and value = 'val_484'
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 #### A masked pattern was here ####
@@ -1074,8 +1080,8 @@ POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).ke
 POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).key SIMPLE [(srcpart)srcpart.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: list_bucketing_dynamic_part PARTITION(ds=2008-04-08,hr=b1).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
-484	val_484	2008-04-08	11
 484	val_484	2008-04-08	12
+484	val_484	2008-04-08	11
 PREHOOK: query: -- clean up
 drop table list_bucketing_dynamic_part
 PREHOOK: type: DROPTABLE

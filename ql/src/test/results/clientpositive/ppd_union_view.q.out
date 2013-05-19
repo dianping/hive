@@ -145,7 +145,6 @@ on t1_old.keymap = t1_mapping.keymap and
    t1_old.ds = t1_mapping.ds
 ) subq
 PREHOOK: type: CREATEVIEW
-#### A masked pattern was here ####
 POSTHOOK: query: create view t1 partitioned on (ds) as
 select * from
 (
@@ -157,7 +156,6 @@ on t1_old.keymap = t1_mapping.keymap and
 ) subq
 POSTHOOK: type: CREATEVIEW
 POSTHOOK: Output: default@t1
-#### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).keymap SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-14).key SIMPLE []
@@ -260,7 +258,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.t1_mapping
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 12
@@ -306,7 +303,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.t1_old
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 14
@@ -391,32 +387,23 @@ STAGE PLANS:
                       expr: _col2
                       type: string
                 outputColumnNames: _col0, _col1, _col2
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col2
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2
-                          columns.types string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2
+                        columns.types string:string:string
+                        escape.delim \
+                        serialization.format 1
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
         t1-subquery1:subq-subquery1:t1_new 
           TableScan
             alias: t1_new
@@ -445,32 +432,23 @@ STAGE PLANS:
                           expr: _col2
                           type: string
                     outputColumnNames: _col0, _col1, _col2
-                    Select Operator
-                      expressions:
-                            expr: _col0
-                            type: string
-                            expr: _col1
-                            type: string
-                            expr: _col2
-                            type: string
-                      outputColumnNames: _col0, _col1, _col2
-                      File Output Operator
-                        compressed: false
-                        GlobalTableId: 0
+                    File Output Operator
+                      compressed: false
+                      GlobalTableId: 0
 #### A masked pattern was here ####
-                        NumFilesPerFileSink: 1
+                      NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                        table:
-                            input format: org.apache.hadoop.mapred.TextInputFormat
-                            output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                            properties:
-                              columns _col0,_col1,_col2
-                              columns.types string:string:string
-                              escape.delim \
-                              serialization.format 1
-                        TotalFiles: 1
-                        GatherStats: false
-                        MultiFileSpray: false
+                      table:
+                          input format: org.apache.hadoop.mapred.TextInputFormat
+                          output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                          properties:
+                            columns _col0,_col1,_col2
+                            columns.types string:string:string
+                            escape.delim \
+                            serialization.format 1
+                      TotalFiles: 1
+                      GatherStats: false
+                      MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
@@ -694,6 +672,37 @@ STAGE PLANS:
                       expr: _col2
                       type: string
                 outputColumnNames: _col0, _col1, _col2
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
+#### A masked pattern was here ####
+                  NumFilesPerFileSink: 1
+#### A masked pattern was here ####
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2
+                        columns.types string:string:string
+                        escape.delim \
+                        serialization.format 1
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
+        t1-subquery1:subq-subquery1:t1_new 
+          TableScan
+            alias: t1_new
+            GatherStats: false
+            Select Operator
+              expressions:
+                    expr: key
+                    type: string
+                    expr: value
+                    type: string
+                    expr: ds
+                    type: string
+              outputColumnNames: _col0, _col1, _col2
+              Union
                 Select Operator
                   expressions:
                         expr: _col0
@@ -720,55 +729,6 @@ STAGE PLANS:
                     TotalFiles: 1
                     GatherStats: false
                     MultiFileSpray: false
-        t1-subquery1:subq-subquery1:t1_new 
-          TableScan
-            alias: t1_new
-            GatherStats: false
-            Select Operator
-              expressions:
-                    expr: key
-                    type: string
-                    expr: value
-                    type: string
-                    expr: ds
-                    type: string
-              outputColumnNames: _col0, _col1, _col2
-              Union
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col2
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2
-                  Select Operator
-                    expressions:
-                          expr: _col0
-                          type: string
-                          expr: _col1
-                          type: string
-                          expr: _col2
-                          type: string
-                    outputColumnNames: _col0, _col1, _col2
-                    File Output Operator
-                      compressed: false
-                      GlobalTableId: 0
-#### A masked pattern was here ####
-                      NumFilesPerFileSink: 1
-#### A masked pattern was here ####
-                      table:
-                          input format: org.apache.hadoop.mapred.TextInputFormat
-                          output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                          properties:
-                            columns _col0,_col1,_col2
-                            columns.types string:string:string
-                            escape.delim \
-                            serialization.format 1
-                      TotalFiles: 1
-                      GatherStats: false
-                      MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
@@ -803,7 +763,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.t1_new
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 11

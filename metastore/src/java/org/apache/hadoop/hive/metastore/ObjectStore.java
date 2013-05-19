@@ -85,6 +85,7 @@ import org.apache.hadoop.hive.metastore.api.PrivilegeGrantInfo;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
+import org.apache.hadoop.hive.metastore.api.SkewedValueList;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -1054,13 +1055,13 @@ public class ObjectStore implements RawStore, Configurable {
    * @param mMap
    * @return
    */
-  private Map<List<String>, String> covertToSkewedMap(Map<MStringList, String> mMap) {
-    Map<List<String>, String> map = null;
+  private Map<SkewedValueList, String> covertToSkewedMap(Map<MStringList, String> mMap) {
+    Map<SkewedValueList, String> map = null;
     if (mMap != null) {
-      map = new HashMap<List<String>, String>(mMap.size());
+      map = new HashMap<SkewedValueList, String>(mMap.size());
       Set<MStringList> keys = mMap.keySet();
       for (MStringList key : keys) {
-        map.put(new ArrayList<String>(key.getInternalList()), mMap.get(key));
+        map.put(new SkewedValueList(new ArrayList<String>(key.getInternalList())), mMap.get(key));
       }
     }
     return map;
@@ -1071,13 +1072,12 @@ public class ObjectStore implements RawStore, Configurable {
    * @param mMap
    * @return
    */
-  private Map<MStringList, String> covertToMapMStringList(Map<List<String>, String> mMap) {
+  private Map<MStringList, String> convertToMapMStringList(Map<SkewedValueList, String> mMap) {
     Map<MStringList, String> map = null;
     if (mMap != null) {
       map = new HashMap<MStringList, String>(mMap.size());
-      Set<List<String>> keys = mMap.keySet();
-      for (List<String> key : keys) {
-        map.put(new MStringList(key), mMap.get(key));
+      for (Map.Entry<SkewedValueList, String> entry : mMap.entrySet()) {
+        map.put(new MStringList(entry.getKey().getSkewedValueList()), entry.getValue());
       }
     }
     return map;
@@ -1124,7 +1124,7 @@ public class ObjectStore implements RawStore, Configurable {
             : sd.getSkewedInfo().getSkewedColNames(),
         convertToMStringLists((null == sd.getSkewedInfo()) ? null : sd.getSkewedInfo()
             .getSkewedColValues()),
-        covertToMapMStringList((null == sd.getSkewedInfo()) ? null : sd.getSkewedInfo()
+        convertToMapMStringList((null == sd.getSkewedInfo()) ? null : sd.getSkewedInfo()
             .getSkewedColValueLocationMaps()), sd.isStoredAsSubDirectories());
   }
 
@@ -1286,7 +1286,7 @@ public class ObjectStore implements RawStore, Configurable {
       return null;
     }
     return new Partition(mpart.getValues(), dbName, tblName, mpart.getCreateTime(),
-        mpart.getLastAccessTime(), convertToStorageDescriptor(mpart.getSd(), true),
+        mpart.getLastAccessTime(), convertToStorageDescriptor(mpart.getSd(), false),
         mpart.getParameters());
   }
 
@@ -2029,7 +2029,9 @@ public class ObjectStore implements RawStore, Configurable {
     oldp.setValues(newp.getValues());
     oldp.setPartitionName(newp.getPartitionName());
     oldp.setParameters(newPart.getParameters());
-    copyMSD(newp.getSd(), oldp.getSd());
+    if (!TableType.VIRTUAL_VIEW.name().equals(oldp.getTable().getTableType())) {
+      copyMSD(newp.getSd(), oldp.getSd());
+    }
     if (newp.getCreateTime() != oldp.getCreateTime()) {
       oldp.setCreateTime(newp.getCreateTime());
     }
@@ -2041,16 +2043,23 @@ public class ObjectStore implements RawStore, Configurable {
   public void alterPartition(String dbname, String name, List<String> part_vals, Partition newPart)
       throws InvalidObjectException, MetaException {
     boolean success = false;
+    Exception e = null;
     try {
       openTransaction();
       alterPartitionNoTxn(dbname, name, part_vals, newPart);
       // commit the changes
       success = commitTransaction();
+    } catch (Exception exception) {
+      e = exception;
     } finally {
       if (!success) {
         rollbackTransaction();
-        throw new MetaException(
+        MetaException metaException = new MetaException(
             "The transaction for alter partition did not commit successfully.");
+        if (e != null) {
+          metaException.initCause(e);
+        }
+        throw metaException;
       }
     }
   }
@@ -2058,6 +2067,7 @@ public class ObjectStore implements RawStore, Configurable {
   public void alterPartitions(String dbname, String name, List<List<String>> part_vals,
       List<Partition> newParts) throws InvalidObjectException, MetaException {
     boolean success = false;
+    Exception e = null;
     try {
       openTransaction();
       Iterator<List<String>> part_val_itr = part_vals.iterator();
@@ -2067,11 +2077,17 @@ public class ObjectStore implements RawStore, Configurable {
       }
       // commit the changes
       success = commitTransaction();
+    } catch (Exception exception) {
+      e = exception;
     } finally {
       if (!success) {
         rollbackTransaction();
-        throw new MetaException(
+        MetaException metaException = new MetaException(
             "The transaction for alter partition did not commit successfully.");
+        if (e != null) {
+          metaException.initCause(e);
+        }
+        throw metaException;
       }
     }
   }

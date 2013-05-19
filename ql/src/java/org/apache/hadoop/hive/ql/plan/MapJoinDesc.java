@@ -47,6 +47,7 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
 
   private transient String bigTableAlias;
 
+  // table alias (small) --> input file name (big) --> target file names (small)
   private Map<String, Map<String, List<String>>> aliasBucketFileNameMapping;
   private Map<String, Integer> bigTableBucketNumMapping;
   private Map<String, List<String>> bigTablePartSpecToFileMapping;
@@ -237,6 +238,7 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
     this.bigTablePartSpecToFileMapping = partToFileMapping;
   }
 
+  @Explain(displayName = "BucketMapJoin", normalExplain = false, displayOnlyOnTrue = true)
   public boolean isBucketMapJoin() {
     return isBucketMapJoin;
   }

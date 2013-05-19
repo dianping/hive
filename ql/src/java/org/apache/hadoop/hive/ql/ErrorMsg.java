@@ -167,9 +167,6 @@ public enum ErrorMsg {
       + "hive.exec.dynamic.partition=true or specify partition column values"),
   DYNAMIC_PARTITION_STRICT_MODE(10096, "Dynamic partition strict mode requires at least one "
       + "static partition column. To turn this off set hive.exec.dynamic.partition.mode=nonstrict"),
-  DYNAMIC_PARTITION_MERGE(10097, "Dynamic partition does not support merging using "
-      + "non-CombineHiveInputFormat. Please check your hive.input.format setting and "
-      + "make sure your Hadoop version support CombineFileInputFormat"),
   NONEXISTPARTCOL(10098, "Non-Partition column appears in the partition specification: "),
   UNSUPPORTED_TYPE(10099, "DATE and DATETIME types aren't supported yet. Please use "
       + "TIMESTAMP instead"),
@@ -239,8 +236,8 @@ public enum ErrorMsg {
     "Fix the metadata or don't use bucketed mapjoin, by setting " +
     "hive.enforce.bucketmapjoin to false."),
 
-  JOINNODE_OUTERJOIN_MORETHAN_8(10142, "Single join node containing outer join(s) " +
-      "cannot have more than 8 aliases"),
+  JOINNODE_OUTERJOIN_MORETHAN_16(10142, "Single join node containing outer join(s) " +
+      "cannot have more than 16 aliases"),
 
   INVALID_JDO_FILTER_EXPRESSION(10043, "Invalid expression for JDO filter"),
 
@@ -259,7 +256,8 @@ public enum ErrorMsg {
       10199,
       "hive.mapred.supports.subdirectories must be true"
           + " if any one of following is true: "
-          + " hive.optimize.listbucketing and mapred.input.dir.recursive"),
+          + " hive.optimize.listbucketing , mapred.input.dir.recursive"
+          + " and hive.optimize.union.remove."),
   SKEWED_TABLE_NO_COLUMN_NAME(10200, "No skewed column name."),
   SKEWED_TABLE_NO_COLUMN_VALUE(10201, "No skewed values."),
   SKEWED_TABLE_DUPLICATE_COLUMN_NAMES(10202,
@@ -303,7 +301,7 @@ public enum ErrorMsg {
     "Cannot ALTER VIEW AS SELECT if view currently does not exist\n"),
   REPLACE_VIEW_WITH_PARTITION(10217,
     "Cannot replace a view with CREATE VIEW or REPLACE VIEW or " +
-    "ALTER VIEW AS SELECT if the view has paritions\n"),
+    "ALTER VIEW AS SELECT if the view has partitions\n"),
   EXISTING_TABLE_IS_NOT_VIEW(10218,
     "Existing table is not a view\n"),
   NO_SUPPORTED_ORDERBY_ALLCOLREF_POS(10219,
@@ -323,6 +321,34 @@ public enum ErrorMsg {
     "with distincts. Either set hive.new.job.grouping.set.cardinality to a high number " +
     "(higher than the number of rows per input row due to grouping sets in the query), or " +
     "rewrite the query to not use distincts."),
+  TRUNCATE_COLUMN_INDEXED_TABLE(10227, "Can not truncate columns from table with indexes"),
+  TRUNCATE_COLUMN_NOT_RC(10228, "Only RCFileFormat supports column truncation."),
+  TRUNCATE_COLUMN_ARCHIVED(10229, "Column truncation cannot be performed on archived partitions."),
+  TRUNCATE_BUCKETED_COLUMN(10230,
+      "A column on which a partition/table is bucketed cannot be truncated."),
+  TRUNCATE_LIST_BUCKETED_COLUMN(10231,
+      "A column on which a partition/table is list bucketed cannot be truncated."),
+
+  OPERATOR_NOT_ALLOWED_WITH_MAPJOIN(10227,
+    "Not all clauses are supported with mapjoin hint. Please remove mapjoin hint."),
+
+  ANALYZE_TABLE_NOSCAN_NON_NATIVE(10228, "ANALYZE TABLE NOSCAN cannot be used for "
+      + "a non-native table"),
+
+  ANALYZE_TABLE_PARTIALSCAN_NON_NATIVE(10229, "ANALYZE TABLE PARTIALSCAN cannot be used for "
+      + "a non-native table"),
+  ANALYZE_TABLE_PARTIALSCAN_NON_RCFILE(10230, "ANALYZE TABLE PARTIALSCAN doesn't "
+      + "support non-RCfile. "),
+  ANALYZE_TABLE_PARTIALSCAN_EXTERNAL_TABLE(10231, "ANALYZE TABLE PARTIALSCAN "
+      + "doesn't support external table: "),
+  ANALYZE_TABLE_PARTIALSCAN_AGGKEY(10232, "Analyze partialscan command "
+            + "fails to construct aggregation for the partition "),
+  ANALYZE_TABLE_PARTIALSCAN_AUTOGATHER(10233, "Analyze partialscan is not allowed " +
+            "if hive.stats.autogather is set to false"),
+  PARTITION_VALUE_NOT_CONTINUOUS(10234, "Parition values specifed are not continuous." +
+            " A subpartition value is specified without specififying the parent partition's value"),
+  TABLES_INCOMPATIBLE_SCHEMAS(10235, "Tables have incompatible schemas and their partitions " +
+            " cannot be exchanged."),
 
   SCRIPT_INIT_ERROR(20000, "Unable to initialize custom script."),
   SCRIPT_IO_ERROR(20001, "An error occurred while reading or writing to your custom script. "

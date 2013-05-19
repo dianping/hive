@@ -38,7 +38,9 @@
   <property name="build.classes" location="${build.dir}/classes"/>
   <property name="build.encoding" value="ISO-8859-1"/>
 
+  <!-- Thrift codegen properties -->
   <property name="thrift.args" value="-I ${thrift.home} --gen java:beans,hashcode --gen cpp --gen php --gen py --gen rb"/>
+  <property name="thrift.gen.dir" value="${basedir}/src/gen/thrift"/>
 
   <property name="hadoop.conf.dir" location="${hadoop.root}/conf"/>
 
@@ -57,7 +59,7 @@
   <property name="test.output" value="true"/>
   <property name="test.junit.output.format" value="xml"/>
   <property name="test.junit.output.usefile" value="true"/>
-  <property name="minimr.query.files" value="list_bucket_dml_10.q,input16_cc.q,scriptfile1.q,bucket4.q,bucketmapjoin6.q,disable_merge_for_bucketing.q,reduce_deduplicate.q,smb_mapjoin_8.q,join1.q,groupby2.q,bucketizedhiveinputformat.q,bucketmapjoin7.q,optrstat_groupby.q,bucket_num_reducers.q,bucket5.q,load_fs2.q"/>
+  <property name="minimr.query.files" value="list_bucket_dml_10.q,input16_cc.q,scriptfile1.q,bucket4.q,bucketmapjoin6.q,disable_merge_for_bucketing.q,reduce_deduplicate.q,smb_mapjoin_8.q,join1.q,groupby2.q,bucketizedhiveinputformat.q,bucketmapjoin7.q,optrstat_groupby.q,bucket_num_reducers.q,bucket5.q,load_fs2.q,bucket_num_reducers2.q,infer_bucket_sort_merge.q,infer_bucket_sort_reducers_power_two.q,infer_bucket_sort_dyn_part.q,infer_bucket_sort_bucketed_table.q,infer_bucket_sort_map_operators.q,infer_bucket_sort_num_buckets.q,schemeAuthority.q,truncate_column_buckets.q,remote_script.q"/>
   <property name="minimr.query.negative.files" value="cluster_tasklog_retrieval.q,minimr_broken_pipe.q,mapreduce_stack_trace.q,mapreduce_stack_trace_turnoff.q,mapreduce_stack_trace_hadoop20.q,mapreduce_stack_trace_turnoff_hadoop20.q" />
   <property name="test.silent" value="true"/>
   <property name="hadoopVersion" value="${hadoop.version.ant-internal}"/>
@@ -68,6 +70,10 @@
   <property name="hadoop.opts.23" value="-D mapreduce.framework.name=local" />
   <property name="hadoop.opts.20" value="" />
 
+  <condition property="test.halt.on.failure" value="no" else="yes">
+    <equals arg1="${test.continue.on.failure}" arg2="true"/>
+  </condition>
+
   <target name="set-test-classpath">
     <typedef name="distinctelementsclasspath" classname="org.apache.hadoop.hive.ant.DistinctElementsClassPath"
       classpath="${build.dir.hive}/anttasks/hive-anttasks-${version}.jar:${build.ivy.lib.dir}/default/commons-collections-${commons-collections.version}.jar:${build.ivy.lib.dir}/default/commons-lang-${commons-lang.version}.jar"/>
@@ -77,12 +83,14 @@
       <pathelement location="" />
       <pathelement location="${test.src.data.dir}/conf"/>
       <pathelement location="${hive.conf.dir}"/>
+      <pathelement location="${build.dir.hive}/beeline/test/classes"/>
       <pathelement location="${build.dir.hive}/cli/test/classes"/>
       <pathelement location="${build.dir.hive}/common/test/classes"/>
       <pathelement location="${build.dir.hive}/hbase-handler/test/classes"/>
       <pathelement location="${build.dir.hive}/hwi/test/classes"/>
       <pathelement location="${build.dir.hive}/jdbc/test/classes"/>
       <pathelement location="${build.dir.hive}/metastore/test/classes"/>
+      <pathelement location="${build.dir.hive}/hcatalog/test/classes"/>
       <pathelement location="${build.dir.hive}/ql/test/classes"/>
       <pathelement location="${build.dir.hive}/serde/test/classes"/>
       <pathelement location="${build.dir.hive}/service/test/classes"/>
@@ -97,6 +105,7 @@
       <!-- test directory may contain hadoop jars used by tests only (e.g. mini cluster) -->
       <fileset dir="${hive.root}/build/ivy/lib/test" includes="*.jar" erroronmissingdir="false"
                excludes="**/hive_*.jar,**/hive-*.jar"/>
+      <fileset dir="${hive.root}/build/ivy/lib/test" includes="hive-testutils*.jar" Erroronmissingdir="false"/>
 
       <!-- we strip out hadoop jars present in places other than the hadoop shimmed dir-->
       <fileset dir="${hive.root}/build/ivy/lib/default" includes="*.jar" erroronmissingdir="false"
@@ -181,6 +190,7 @@
     <pathelement location="${build.dir.hive}/classes"/>
     <fileset dir="${build.dir.hive}" includes="*/*.jar"/>
     <fileset dir="${hive.root}/lib" includes="*.jar"/>
+    <fileset dir="${build.ivy.lib.dir}/default" includes="junit*.jar" />
     <fileset dir="${build.ivy.lib.dir}/hadoop0.${hadoop.mr.rev}.shim" includes="*.jar" erroronmissingdir="false" />
     <fileset dir="${build.ivy.lib.dir}/default" includes="*.jar"
              excludes="**/hadoop-*.jar"
@@ -192,7 +202,9 @@
     <pathelement location="${build.dir.hive}/common/classes"/>
     <pathelement location="${build.dir.hive}/serde/classes"/>
     <pathelement location="${build.dir.hive}/metastore/classes"/>
+    <pathelement location="${build.dir.hive}/hcatalog/classes"/>
     <pathelement location="${build.dir.hive}/ql/classes"/>
+    <pathelement location="${build.dir.hive}/beeline/classes"/>
     <pathelement location="${build.dir.hive}/cli/classes"/>
     <pathelement location="${build.dir.hive}/shims/classes"/>
     <pathelement location="${build.dir.hive}/hwi/classes"/>
@@ -226,6 +238,7 @@
     <echo message="Project: ${ant.project.name}"/>
     <mkdir dir="${test.data.dir}"/>
     <mkdir dir="${test.log.dir}/clientpositive"/>
+    <mkdir dir="${test.log.dir}/beelinepositive"/>
     <mkdir dir="${test.log.dir}/clientnegative"/>
     <mkdir dir="${test.log.dir}/positive"/>
     <mkdir dir="${test.log.dir}/negative"/>
@@ -255,7 +268,7 @@
     </copy>
   </target>
 
-  <target name="jar" depends="compile">
+  <target name="jar" depends="make-pom,compile">
     <echo message="Project: ${ant.project.name}" />
     <jar
       jarfile="${build.dir}/hive-${ant.project.name}-${version}.jar"
@@ -280,7 +293,7 @@
     <javac
      encoding="${build.encoding}"
      srcdir="${test.src.dir}"
-     includes="org/apache/hadoop/**/*.java"
+     includes="org/apache/**/hive/**/*.java"
      excludes="**/TestSerDe.java"
      destdir="${test.build.classes}"
      debug="${javac.debug}"
@@ -295,7 +308,7 @@
     <javac
      encoding="${build.encoding}"
      srcdir="${test.build.src}"
-     includes="org/apache/hadoop/**/*.java"
+     includes="org/apache/**/hive/**/*.java"
      destdir="${test.build.classes}"
      debug="${javac.debug}"
      optimize="${javac.optimize}"
@@ -334,6 +347,12 @@
       </not>
     </condition>
 
+    <condition property="qfile_negative_regex" value="">
+      <not>
+        <isset property="qfile_negative_regex"/>
+      </not>
+    </condition>
+
     <condition property="overwrite" value="false">
       <not>
         <isset property="overwrite"/>
@@ -346,6 +365,12 @@
       </not>
     </condition>
 
+    <condition property="disableserver" value="false">
+      <not>
+        <isset property="disableserver"/>
+      </not>
+    </condition>
+    
     <condition property="clustermode" value="">
       <not>
         <isset property="clustermode"/>
@@ -385,9 +410,11 @@
       <equals arg1="${hadoop.mr.rev}" arg2="23" />
       <then>
         <property name="hadoop.opts" value="${hadoop.opts.23}" />
+        <property name="test.dfs.mkdir" value="-mkdir -p"/>
       </then>
       <else>
         <property name="hadoop.opts" value="${hadoop.opts.20}" />
+        <property name="test.dfs.mkdir" value="-mkdir"/>
       </else>
     </if>
     <!-- Set the OS specific settings to run junit tests on unix as well as on windows -->
@@ -406,16 +433,21 @@
         <echo message="Test Classpath: ${hadoop.testcp}"/>
       </then>
     </if>
-    <junit showoutput="${test.output}" printsummary="yes" haltonfailure="no"
-           fork="yes" maxmemory="512m" dir="${basedir}" timeout="${test.junit.timeout}"
+
+    <junit showoutput="${test.output}" printsummary="yes" haltonfailure="${test.halt.on.failure}"
+           fork="yes" maxmemory="${test.junit.maxmemory}" dir="${basedir}" timeout="${test.junit.timeout}"
            errorProperty="tests.failed" failureProperty="tests.failed" filtertrace="off">
+      <jvmarg value="-XX:+HeapDumpOnOutOfMemoryError"/>
+      <jvmarg value="-XX:HeapDumpPath=${hive.root}"/>
       <env key="LANG" value="${test.lang}"/>
       <env key="HIVE_HADOOP_TEST_CLASSPATH" value="${hadoop.testcp}"/>
       <env key="HADOOP_HOME" value="${hadoop.root}"/>
       <env key="HADOOP_CLASSPATH" path="${test.src.data.dir}/conf:${build.dir.hive}/dist/lib/derby-${derby.version}.jar:${build.dir.hive}/dist/lib/JavaEWAH-${javaewah.version}.jar:${hadoop.root}/modules/*"/> <!-- Modules needed for Hadoop 0.23 -->
       <env key="TZ" value="US/Pacific"/>
       <sysproperty key="test.output.overwrite" value="${overwrite}"/>
+      <sysproperty key="test.dfs.mkdir" value="${test.dfs.mkdir}"/>
       <sysproperty key="test.service.standalone.server" value="${standalone}"/>
+      <sysproperty key="test.service.disable.server" value="${disableserver}"/>
       <sysproperty key="log4j.configuration" value="file:///${test.src.data.dir}/conf/hive-log4j.properties"/>
       <sysproperty key="derby.stream.error.file" value="${test.build.dir}/derby.log"/>
       <sysproperty key="hive.aux.jars.path" value="file:///${test.build.dir}/test-udfs.jar"/>
@@ -434,17 +466,19 @@
       <sysproperty key="build.dir.hive" value="${build.dir.hive}"/>
       <sysproperty key="build.ivy.lib.dir" value="${build.ivy.lib.dir}"/>
       <sysproperty key="derby.version" value="${derby.version}"/>
+      <sysproperty key="hive.root" value="${hive.root}"/>
       <sysproperty key="hive.version" value="${version}"/>
       <sysproperty key="java.net.preferIPv4Stack" value="${java.net.preferIPv4Stack}"/>
       <sysproperty key="hadoop.bin.path" value="${test.hadoop.bin.path}${junit.script.extension}"/>
-      <jvmarg line="${jvm.args}"/>
+      <sysproperty key="test.concurrency.num.threads" value="${test.concurrency.num.threads}"/>
+      <jvmarg line="${junit.jvm.args}"/>
 
       <classpath refid="test.local.classpath"/>
       <formatter type="${test.junit.output.format}" usefile="${test.junit.output.usefile}" />
       <batchtest todir="${test.build.dir}" unless="testcase">
         <fileset dir="${test.build.classes}"
                  includes="**/${test.include}.class"
-                 excludes="**/TestSerDe.class,**/TestHiveMetaStore.class,**/*$*.class,${test.junit.exclude}" />
+                 excludes="**/TestSerDe.class,**/TestHiveMetaStore.class,**/TestBeeLineDriver.class,**/TestHiveServer2Concurrency.class,**/*$*.class,${test.junit.exclude}" />
       </batchtest>
       <batchtest todir="${test.build.dir}" if="testcase">
         <fileset dir="${test.build.classes}" includes="**/${testcase}.class"/>
@@ -480,12 +514,29 @@
     </condition>
   </target>
 
+  <target name="thriftif" depends="check-thrift-home">
+    <echo message="Project: ${ant.project.name}"/>
+    <delete dir="${thrift.gen.dir}"/>
+    <mkdir dir="${thrift.gen.dir}"/>
+    <for param="thrift.file">
+      <path>
+        <fileset dir="." includes="if/*.thrift,if/test/*.thrift" />
+      </path>
+      <sequential>
+        <echo message="Generating Thrift code for @{thrift.file}"/>
+        <exec executable="${thrift.home}/bin/thrift"  failonerror="true" dir=".">
+          <arg line="${thrift.args} -I ${basedir}/include -I ${basedir}/.. -o ${thrift.gen.dir} @{thrift.file} " />
+        </exec>
+      </sequential>
+    </for>
+  </target>
+  
   <target name="check-ivy" depends="ivy-init-settings">
     <echo message="Project: ${ant.project.name}"/>
     <available file="${basedir}/ivy.xml" property="ivy.present"/>
   </target>
 
-  <target name="make-pom" if="ivy.present" depends="check-ivy, jar">
+  <target name="make-pom" if="ivy.present" depends="check-ivy,ivy-resolve">
     <echo message="Project: ${ant.project.name}"/>
     <echo> Writing POM to ${build.dir}/pom.xml</echo>
 

@@ -51,6 +51,17 @@ public class QB {
   private boolean isQuery;
   private boolean isAnalyzeRewrite;
   private CreateTableDesc tblDesc = null; // table descriptor of the final
+  private CreateTableDesc localDirectoryDesc = null ;
+
+  // used by PTFs
+  /*
+   * This map maintains the PTFInvocationSpec for each PTF chain invocation in this QB.
+   */
+  private HashMap<ASTNode, PTFInvocationSpec> ptfNodeToSpec;
+  /*
+   * the WindowingSpec used for windowing clauses in this QB.
+   */
+  private HashMap<String, WindowingSpec> destToWindowingSpec;
 
   // results
 
@@ -76,6 +87,8 @@ public class QB {
     }
     qbp = new QBParseInfo(alias, isSubQ);
     qbm = new QBMetaData();
+    ptfNodeToSpec = new HashMap<ASTNode, PTFInvocationSpec>();
+    destToWindowingSpec = new HashMap<String, WindowingSpec>();
     id = getAppendedAliasFromId(outer_id, alias);
   }
 
@@ -215,6 +228,14 @@ public class QB {
     tblDesc = desc;
   }
 
+  public CreateTableDesc getLLocalDirectoryDesc() {
+    return localDirectoryDesc;
+  }
+
+  public void setLocalDirectoryDesc(CreateTableDesc localDirectoryDesc) {
+    this.localDirectoryDesc = localDirectoryDesc;
+  }
+
   /**
    * Whether this QB is for a CREATE-TABLE-AS-SELECT.
    */
@@ -246,4 +267,35 @@ public class QB {
   public void setAnalyzeRewrite(boolean isAnalyzeRewrite) {
     this.isAnalyzeRewrite = isAnalyzeRewrite;
   }
+
+  public PTFInvocationSpec getPTFInvocationSpec(ASTNode node) {
+    return ptfNodeToSpec == null ? null : ptfNodeToSpec.get(node);
+  }
+
+  public void addPTFNodeToSpec(ASTNode node, PTFInvocationSpec spec) {
+    ptfNodeToSpec = ptfNodeToSpec == null ? new HashMap<ASTNode, PTFInvocationSpec>() : ptfNodeToSpec;
+    ptfNodeToSpec.put(node, spec);
+  }
+
+  public HashMap<ASTNode, PTFInvocationSpec> getPTFNodeToSpec() {
+    return ptfNodeToSpec;
+  }
+
+  public WindowingSpec getWindowingSpec(String dest) {
+    return destToWindowingSpec.get(dest);
+  }
+
+  public void addDestToWindowingSpec(String dest, WindowingSpec windowingSpec) {
+    destToWindowingSpec.put(dest, windowingSpec);
+  }
+
+  public boolean hasWindowingSpec(String dest) {
+    return destToWindowingSpec.get(dest) != null;
+  }
+
+  public HashMap<String, WindowingSpec> getAllWindowingSpecs() {
+    return destToWindowingSpec;
+  }
+
+
 }

@@ -20,8 +20,11 @@ package org.apache.hadoop.hive.ql.plan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
+import org.apache.hadoop.hive.ql.exec.Operator;
+import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class ExprNodeDescUtils {
@@ -90,13 +93,51 @@ public class ExprNodeDescUtils {
 
   /**
    * bind two predicates by AND op
-    */
+   */
   public static ExprNodeDesc mergePredicates(ExprNodeDesc prev, ExprNodeDesc next) {
     List<ExprNodeDesc> children = new ArrayList<ExprNodeDesc>(2);
     children.add(prev);
     children.add(next);
     return new ExprNodeGenericFuncDesc(TypeInfoFactory.booleanTypeInfo,
         FunctionRegistry.getGenericUDFForAnd(), children);
+  }
+
+  /**
+   * bind n predicates by AND op
+   */
+  public static ExprNodeDesc mergePredicates(List<ExprNodeDesc> exprs) {
+    ExprNodeDesc prev = null;
+    for (ExprNodeDesc expr : exprs) {
+      if (prev == null) {
+        prev = expr;
+        continue;
+      }
+      prev = mergePredicates(prev, expr);
+    }
+    return prev;
+  }
+
+  /**
+   * split predicates by AND op
+   */
+  public static List<ExprNodeDesc> split(ExprNodeDesc current) {
+    return split(current, new ArrayList<ExprNodeDesc>());
+  }
+
+  /**
+   * split predicates by AND op
+   */
+  public static List<ExprNodeDesc> split(ExprNodeDesc current, List<ExprNodeDesc> splitted) {
+    if (FunctionRegistry.isOpAnd(current)) {
+      for (ExprNodeDesc child : current.getChildren()) {
+        split(child, splitted);
+      }
+      return splitted;
+    }
+    if (indexOf(current, splitted) < 0) {
+      splitted.add(current);
+    }
+    return splitted;
   }
 
   /**
@@ -112,5 +153,95 @@ public class ExprNodeDescUtils {
       return ((ExprNodeColumnDesc)children.get(0)).getColumn();
     }
     return null;
+  }
+
+  /**
+   * Return false if the expression has any non determinitic function
+   */
+  public static boolean isDeterministic(ExprNodeDesc desc) {
+    if (desc instanceof ExprNodeGenericFuncDesc) {
+      if (!FunctionRegistry.isDeterministic(((ExprNodeGenericFuncDesc)desc).getGenericUDF())) {
+        return false;
+      }
+    }
+    if (desc.getChildren() != null) {
+      for (ExprNodeDesc child : desc.getChildren()) {
+        if (!isDeterministic(child)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Convert expressions in current operator to those in terminal operator, which
+   * is an ancestor of current or null (back to top operator).
+   */
+  public static ArrayList<ExprNodeDesc> backtrack(List<ExprNodeDesc> sources,
+      Operator<?> current, Operator<?> terminal) throws SemanticException {
+    ArrayList<ExprNodeDesc> result = new ArrayList<ExprNodeDesc>();
+    for (ExprNodeDesc expr : sources) {
+      result.add(backtrack(expr, current, terminal));
+    }
+    return result;
+  }
+
+  public static ExprNodeDesc backtrack(ExprNodeDesc source, Operator<?> current,
+      Operator<?> terminal) throws SemanticException {
+    Operator<?> parent = getSingleParent(current, terminal);
+    if (parent == null) {
+      return source;
+    }
+    if (source instanceof ExprNodeGenericFuncDesc) {
+      // all children expression should be resolved
+      ExprNodeGenericFuncDesc function = (ExprNodeGenericFuncDesc) source.clone();
+      function.setChildExprs(backtrack(function.getChildren(), current, terminal));
+      return function;
+    }
+    if (source instanceof ExprNodeColumnDesc) {
+      ExprNodeColumnDesc column = (ExprNodeColumnDesc) source;
+      return backtrack(column, parent, terminal);
+    }
+    if (source instanceof ExprNodeFieldDesc) {
+      // field epression should be resolved
+      ExprNodeFieldDesc field = (ExprNodeFieldDesc) source.clone();
+      field.setDesc(backtrack(field.getDesc(), current, terminal));
+      return field;
+    }
+    // constant or null expr, just return
+    return source;
+  }
+
+  // Resolve column expression to input expression by using expression mapping in current operator
+  private static ExprNodeDesc backtrack(ExprNodeColumnDesc column, Operator<?> current,
+      Operator<?> terminal) throws SemanticException {
+    Map<String, ExprNodeDesc> mapping = current.getColumnExprMap();
+    if (mapping == null || !mapping.containsKey(column.getColumn())) {
+      return backtrack((ExprNodeDesc)column, current, terminal);
+    }
+    ExprNodeDesc mapped = mapping.get(column.getColumn());
+    return backtrack(mapped, current, terminal);
+  }
+
+  public static Operator<?> getSingleParent(Operator<?> current, Operator<?> terminal)
+      throws SemanticException {
+    if (current == terminal) {
+      return null;
+    }
+    List<Operator<?>> parents = current.getParentOperators();
+    if (parents == null || parents.isEmpty()) {
+      if (terminal != null) {
+        throw new SemanticException("Failed to meet terminal operator");
+      }
+      return null;
+    }
+    if (parents.size() == 1) {
+      return parents.get(0);
+    }
+    if (terminal != null && parents.contains(terminal)) {
+      return terminal;
+    }
+    throw new SemanticException("Met multiple parent operators");
   }
 }
