@@ -21,10 +21,12 @@ package org.apache.hadoop.hive.ql.exec;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -54,6 +56,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   private static final long serialVersionUID = 1L;
 
+  private Configuration configuration;
   protected List<Operator<? extends OperatorDesc>> childOperators;
   protected List<Operator<? extends OperatorDesc>> parentOperators;
   protected String operatorId;
@@ -129,8 +132,15 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     this.childOperators = childOperators;
   }
 
+  public Configuration getConfiguration() {
+    return configuration;
+  }
   public List<Operator<? extends OperatorDesc>> getChildOperators() {
     return childOperators;
+  }
+
+  public int getNumChild() {
+    return childOperators == null ? 0 : childOperators.size();
   }
 
   /**
@@ -157,6 +167,10 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   public List<Operator<? extends OperatorDesc>> getParentOperators() {
     return parentOperators;
+  }
+
+  public int getNumParent() {
+    return parentOperators == null ? 0 : parentOperators.size();
   }
 
   protected T conf;
@@ -313,6 +327,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
       return;
     }
 
+    this.configuration = hconf;
     this.out = null;
     if (!areAllParentsInitialized()) {
       return;
@@ -470,9 +485,22 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     if (fatalError) {
       return;
     }
-    preProcessCounter();
-    processOp(row, tag);
-    postProcessCounter();
+
+    if (counterNameToEnum != null) {
+      inputRows++;
+      if ((inputRows % 1000) == 0) {
+        incrCounter(numInputRowsCntr, inputRows);
+        incrCounter(timeTakenCntr, totalTime);
+        inputRows = 0;
+        totalTime = 0;
+      }
+
+      beginTime = System.currentTimeMillis();
+      processOp(row, tag);
+      totalTime += (System.currentTimeMillis() - beginTime);
+    } else {
+      processOp(row, tag);
+    }
   }
 
   // If a operator wants to do some work at the beginning of a group
@@ -548,9 +576,11 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     state = State.CLOSE;
     LOG.info(id + " finished. closing... ");
 
-    incrCounter(numInputRowsCntr, inputRows);
-    incrCounter(numOutputRowsCntr, outputRows);
-    incrCounter(timeTakenCntr, totalTime);
+    if (counterNameToEnum != null) {
+      incrCounter(numInputRowsCntr, inputRows);
+      incrCounter(numOutputRowsCntr, outputRows);
+      incrCounter(timeTakenCntr, totalTime);
+    }
 
     LOG.info(id + " forwarded " + cntr + " rows");
 
@@ -763,9 +793,11 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected void forward(Object row, ObjectInspector rowInspector)
       throws HiveException {
 
-    if ((++outputRows % 1000) == 0) {
-      incrCounter(numOutputRowsCntr, outputRows);
-      outputRows = 0;
+    if (counterNameToEnum != null) {
+      if ((++outputRows % 1000) == 0) {
+        incrCounter(numOutputRowsCntr, outputRows);
+        outputRows = 0;
+      }
     }
 
     if (isLogInfoEnabled) {
@@ -1099,39 +1131,12 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected transient Object groupKeyObject;
 
   /**
-   * this is called before operator process to buffer some counters.
-   */
-  private void preProcessCounter() {
-    inputRows++;
-    if ((inputRows % 1000) == 0) {
-      incrCounter(numInputRowsCntr, inputRows);
-      incrCounter(timeTakenCntr, totalTime);
-      inputRows = 0;
-      totalTime = 0;
-    }
-    beginTime = System.currentTimeMillis();
-  }
-
-  /**
-   * this is called after operator process to buffer some counters.
-   */
-  private void postProcessCounter() {
-    if (counterNameToEnum != null) {
-      totalTime += (System.currentTimeMillis() - beginTime);
-    }
-  }
-
-  /**
    * this is called in operators in map or reduce tasks.
    *
    * @param name
    * @param amount
    */
   protected void incrCounter(String name, long amount) {
-    if(counterNameToEnum == null) {
-      return;
-    }
-
     String counterName = getWrappedCounterName(name);
     ProgressCounter pc = counterNameToEnum.get(counterName);
 
@@ -1426,7 +1431,95 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     this.useBucketizedHiveInputFormat = useBucketizedHiveInputFormat;
   }
 
+  /**
+   * Whether this operator supports automatic sort merge join.
+   * The stack is traversed, and this method is invoked for all the operators.
+   * @return TRUE if yes, FALSE otherwise.
+   */
+  public boolean supportAutomaticSortMergeJoin() {
+    return false;
+  }
+
   public boolean supportUnionRemoveOptimization() {
+    return false;
+  }
+
+  /*
+   * This operator is allowed before mapjoin. Eventually, mapjoin hint should be done away with.
+   * But, since bucketized mapjoin and sortmerge join depend on it completely. it is needed.
+   * Check the operators which are allowed before mapjoin.
+   */
+  public boolean opAllowedBeforeMapJoin() {
+    return true;
+  }
+
+  /*
+   * This operator is allowed after mapjoin. Eventually, mapjoin hint should be done away with.
+   * But, since bucketized mapjoin and sortmerge join depend on it completely. it is needed.
+   * Check the operators which are allowed after mapjoin.
+   */
+  public boolean opAllowedAfterMapJoin() {
+    return true;
+  }
+
+  /*
+   * If this task contains a join, it can be converted to a map-join task if this operator is
+   * present in the mapper. For eg. if a sort-merge join operator is present followed by a regular
+   * join, it cannot be converted to a auto map-join.
+   */
+  public boolean opAllowedConvertMapJoin() {
+    return true;
+  }
+
+  /*
+   * If this task contains a sortmergejoin, it can be converted to a map-join task if this operator
+   * is present in the mapper. For eg. if a sort-merge join operator is present followed by a
+   * regular join, it cannot be converted to a auto map-join.
+   */
+  public boolean opAllowedBeforeSortMergeJoin() {
+    return true;
+  }
+
+  public String toString() {
+    return getName() + "[" + getIdentifier() + "]";
+  }
+
+  public static String toString(Collection<Operator<? extends OperatorDesc>> top) {
+    StringBuilder builder = new StringBuilder();
+    Set<String> visited = new HashSet<String>();
+    for (Operator<?> op : top) {
+      if (builder.length() > 0) {
+        builder.append('\n');
+      }
+      toString(builder, visited, op, 0);
+    }
+    return builder.toString();
+  }
+
+  static boolean toString(StringBuilder builder, Set<String> visited, Operator<?> op, int start) {
+    String name = op.toString();
+    boolean added = visited.add(name);
+    if (start > 0) {
+      builder.append("-");
+      start++;
+    }
+    builder.append(name);
+    start += name.length();
+    if (added) {
+      if (op.getNumChild() > 0) {
+        List<Operator<?>> children = op.getChildOperators();
+        for (int i = 0; i < children.size(); i++) {
+          if (i > 0) {
+            builder.append('\n');
+            for (int j = 0; j < start; j++) {
+              builder.append(' ');
+            }
+          }
+          toString(builder, visited, children.get(i), start);
+        }
+      }
+      return true;
+    }
     return false;
   }
 }

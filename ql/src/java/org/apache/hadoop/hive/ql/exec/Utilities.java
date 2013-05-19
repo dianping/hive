@@ -120,8 +120,10 @@ import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils;
-import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes;
+import org.apache.hadoop.hive.ql.plan.api.Adjacency;
+import org.apache.hadoop.hive.ql.plan.api.Graph;
+import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
@@ -137,8 +139,8 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -226,6 +228,25 @@ public final class Utilities {
     } catch (Exception e) {
       e.printStackTrace();
       throw new RuntimeException(e);
+    }
+  }
+
+  public static void setWorkflowAdjacencies(Configuration conf, QueryPlan plan) {
+    try {
+      Graph stageGraph = plan.getQueryPlan().getStageGraph();
+      if (stageGraph == null)
+        return;
+      List<Adjacency> adjList = stageGraph.getAdjacencyList();
+      if (adjList == null)
+        return;
+      for (Adjacency adj : adjList) {
+        List<String> children = adj.getChildren();
+        if (children == null || children.isEmpty())
+          return;
+        conf.setStrings("mapreduce.workflow.adjacency."+adj.getNode(),
+            children.toArray(new String[children.size()]));
+      }
+    } catch (IOException e) {
     }
   }
 
@@ -380,7 +401,7 @@ public final class Utilities {
 
   public static String getHiveJobID(Configuration job) {
     String planPath = HiveConf.getVar(job, HiveConf.ConfVars.PLAN);
-    if (planPath != null) {
+    if (planPath != null && !planPath.isEmpty()) {
       return (new Path(planPath)).getName();
     }
     return null;
@@ -559,30 +580,6 @@ public final class Utilities {
     }
   }
 
-  /**
-   * Tuple.
-   *
-   * @param <T>
-   * @param <V>
-   */
-  public static class Tuple<T, V> {
-    private final T one;
-    private final V two;
-
-    public Tuple(T one, V two) {
-      this.one = one;
-      this.two = two;
-    }
-
-    public T getOne() {
-      return this.one;
-    }
-
-    public V getTwo() {
-      return this.two;
-    }
-  }
-
   public static TableDesc defaultTd;
   static {
     // by default we expect ^A separated strings
@@ -693,7 +690,7 @@ public final class Utilities {
 
   public static TableDesc getTableDesc(Table tbl) {
     return (new TableDesc(tbl.getDeserializer().getClass(), tbl.getInputFormatClass(), tbl
-        .getOutputFormatClass(), tbl.getSchema()));
+        .getOutputFormatClass(), tbl.getMetadata()));
   }
 
   // column names and column types are all delimited by comma
@@ -712,11 +709,6 @@ public final class Utilities {
   public static PartitionDesc getPartitionDescFromTableDesc(TableDesc tblDesc, Partition part)
       throws HiveException {
     return new PartitionDesc(part, tblDesc);
-  }
-
-  public static void addMapWork(MapredWork mr, Table tbl, String alias, Operator<?> work) {
-    mr.addMapWork(tbl.getDataLocation().getPath(), alias, work, new PartitionDesc(
-        getTableDesc(tbl), (LinkedHashMap<String, String>) null));
   }
 
   private static String getOpTreeSkel_helper(Operator<?> op, String indent) {
@@ -1937,10 +1929,6 @@ public final class Utilities {
     }
   }
 
-  public static boolean supportCombineFileInputFormat() {
-    return ShimLoader.getHadoopShims().getCombineFileInputFormat() != null;
-  }
-
   /**
    * Construct a list of full partition spec from Dynamic Partition Context and the directory names
    * corresponding to these dynamic partitions.
@@ -2448,8 +2436,5 @@ public final class Utilities {
 
     return sb.toString();
   }
-
-  public static Class getBuiltinUtilsClass() throws ClassNotFoundException {
-    return Class.forName("org.apache.hive.builtins.BuiltinUtils");
-  }
 }
+

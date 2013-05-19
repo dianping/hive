@@ -2,7 +2,7 @@
 #### A masked pattern was here #### 
  <object class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
   <void property="id"> 
-   <string>Stage-4</string> 
+   <string>Stage-1</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
@@ -29,10 +29,6 @@
           <string>default.src1</string> 
          </void> 
          <void method="put"> 
-          <string>numFiles</string> 
-          <string>1</string> 
-         </void> 
-         <void method="put"> 
           <string>columns.types</string> 
           <string>string:string</string> 
          </void> 
@@ -49,18 +45,6 @@
           <string>key,value</string> 
          </void> 
          <void method="put"> 
-          <string>rawDataSize</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
-          <string>numRows</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
-          <string>numPartitions</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
           <string>bucket_count</string> 
           <string>-1</string> 
          </void> 
@@ -73,19 +57,11 @@
           <string>org.apache.hadoop.mapred.TextInputFormat</string> 
          </void> 
          <void method="put"> 
-          <string>totalSize</string> 
-          <string>216</string> 
-         </void> 
-         <void method="put"> 
           <string>file.outputformat</string> 
           <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
          </void> 
          <void method="put"> 
           <string>location</string> 
-          #### A masked pattern was here #### 
-         </void> 
-         <void method="put"> 
-          <string>transient_lastDdlTime</string> 
           #### A masked pattern was here #### 
          </void> 
         </object> 
@@ -203,6 +179,9 @@
                   </void> 
                   <void property="statsAggPrefix"> 
                    #### A masked pattern was here #### 
+                  </void> 
+                  <void property="statsCollectRawDataSize"> 
+                   <boolean>true</boolean> 
                   </void> 
                   <void property="tableInfo"> 
                    <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
@@ -674,6 +653,9 @@
        </object> 
       </void> 
      </object> 
+    </void> 
+    <void property="finalMapRed"> 
+     <boolean>true</boolean> 
     </void> 
     <void property="nameToSplitSample"> 
      <object class="java.util.HashMap"/> 

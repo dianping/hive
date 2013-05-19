@@ -126,94 +126,14 @@ import org.apache.hadoop.hive.ql.udf.UDFUnhex;
 import org.apache.hadoop.hive.ql.udf.UDFUpper;
 import org.apache.hadoop.hive.ql.udf.UDFWeekOfYear;
 import org.apache.hadoop.hive.ql.udf.UDFYear;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFBridge;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCollectSet;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFComputeStats;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFContextNGrams;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCorrelation;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCount;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCovariance;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCovarianceSample;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEWAHBitmap;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFHistogramNumeric;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFMax;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFMin;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFParameterInfo;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFPercentileApprox;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFResolver;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFResolver2;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFStd;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFStdSample;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFSum;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFVariance;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFVarianceSample;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFnGrams;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArray;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayContains;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFAssertTrue;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCase;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCoalesce;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFConcatWS;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapAnd;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapEmpty;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapOr;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFElt;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFField;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFormatNumber;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFromUtcTimestamp;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFHash;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIf;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFInFile;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIndex;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFInstr;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLocate;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFMap;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFMapKeys;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFMapValues;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFNamedStruct;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFNvl;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualNS;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNot;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotEqual;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotNull;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNull;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPrintf;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFReflect;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSentences;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSize;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSortArray;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSplit;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStringToMap;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStruct;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToBinary;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUnixTimeStamp;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToDecimal;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUtcTimestamp;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTranslate;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUnion;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUnixTimeStamp;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFWhen;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFExplode;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFInline;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFJSONTuple;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFParseUrlTuple;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFStack;
-import org.apache.hadoop.hive.ql.udf.generic.SimpleGenericUDAFParameterInfo;
+import org.apache.hadoop.hive.ql.udf.generic.*;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLeadLag.GenericUDFLag;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLeadLag.GenericUDFLead;
+import org.apache.hadoop.hive.ql.udf.ptf.NPath.NPathResolver;
+import org.apache.hadoop.hive.ql.udf.ptf.Noop.NoopResolver;
+import org.apache.hadoop.hive.ql.udf.ptf.NoopWithMap.NoopWithMapResolver;
+import org.apache.hadoop.hive.ql.udf.ptf.TableFunctionResolver;
+import org.apache.hadoop.hive.ql.udf.ptf.WindowingTableFunction.WindowingTableFunctionResolver;
 import org.apache.hadoop.hive.ql.udf.xml.GenericUDFXPath;
 import org.apache.hadoop.hive.ql.udf.xml.UDFXPathBoolean;
 import org.apache.hadoop.hive.ql.udf.xml.UDFXPathDouble;
@@ -236,6 +156,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+
 /**
  * FunctionRegistry.
  */
@@ -247,6 +168,27 @@ public final class FunctionRegistry {
    * The mapping from expression function names to expression classes.
    */
   static Map<String, FunctionInfo> mFunctions = Collections.synchronizedMap(new LinkedHashMap<String, FunctionInfo>());
+
+  /*
+   * PTF variables
+   * */
+
+  public static final String LEAD_FUNC_NAME = "lead";
+  public static final String LAG_FUNC_NAME = "lag";
+  public static final String LAST_VALUE_FUNC_NAME = "last_value";
+
+
+  public static final String WINDOWING_TABLE_FUNCTION = "windowingtablefunction";
+  public static final String NOOP_TABLE_FUNCTION = "noop";
+  public static final String NOOP_MAP_TABLE_FUNCTION = "noopwithmap";
+
+  static Map<String, WindowFunctionInfo> windowFunctions = Collections.synchronizedMap(new LinkedHashMap<String, WindowFunctionInfo>());
+
+  /*
+   * UDAFS that only work when the input rows have an order.
+   */
+  public static final HashSet<String> UDAFS_IMPLY_ORDER = new HashSet<String>();
+
   static {
     registerUDF("concat", UDFConcat.class, false);
     registerUDF("substr", UDFSubstr.class, false);
@@ -441,6 +383,7 @@ public final class FunctionRegistry {
 
     // Generic UDFs
     registerGenericUDF("reflect", GenericUDFReflect.class);
+    registerGenericUDF("reflect2", GenericUDFReflect2.class);
     registerGenericUDF("java_method", GenericUDFReflect.class);
 
     registerGenericUDF("array", GenericUDFArray.class);
@@ -480,6 +423,36 @@ public final class FunctionRegistry {
     registerGenericUDTF("json_tuple", GenericUDTFJSONTuple.class);
     registerGenericUDTF("parse_url_tuple", GenericUDTFParseUrlTuple.class);
     registerGenericUDTF("stack", GenericUDTFStack.class);
+
+    //PTF declarations
+    registerGenericUDF(true, LEAD_FUNC_NAME, GenericUDFLead.class);
+    registerGenericUDF(true, LAG_FUNC_NAME, GenericUDFLag.class);
+
+    registerHiveUDAFsAsWindowFunctions();
+    registerWindowFunction("row_number", new GenericUDAFRowNumber());
+    registerWindowFunction("rank", new GenericUDAFRank());
+    registerWindowFunction("dense_rank", new GenericUDAFDenseRank());
+    registerWindowFunction("percent_rank", new GenericUDAFPercentRank());
+    registerWindowFunction("cume_dist", new GenericUDAFCumeDist());
+    registerWindowFunction("ntile", new GenericUDAFNTile());
+    registerWindowFunction("first_value", new GenericUDAFFirstValue());
+    registerWindowFunction("last_value", new GenericUDAFLastValue());
+    registerWindowFunction(LEAD_FUNC_NAME, new GenericUDAFLead(), false);
+    registerWindowFunction(LAG_FUNC_NAME, new GenericUDAFLag(), false);
+
+    UDAFS_IMPLY_ORDER.add("rank");
+    UDAFS_IMPLY_ORDER.add("dense_rank");
+    UDAFS_IMPLY_ORDER.add("percent_rank");
+    UDAFS_IMPLY_ORDER.add("cume_dist");
+    UDAFS_IMPLY_ORDER.add(LEAD_FUNC_NAME);
+    UDAFS_IMPLY_ORDER.add(LAG_FUNC_NAME);
+    UDAFS_IMPLY_ORDER.add("first_value");
+    UDAFS_IMPLY_ORDER.add("last_value");
+
+    registerTableFunction(NOOP_TABLE_FUNCTION, NoopResolver.class);
+    registerTableFunction(NOOP_MAP_TABLE_FUNCTION, NoopWithMapResolver.class);
+    registerTableFunction(WINDOWING_TABLE_FUNCTION,  WindowingTableFunctionResolver.class);
+    registerTableFunction("npath", NPathResolver.class);
   }
 
   public static void registerTemporaryUDF(String functionName,
@@ -793,6 +766,26 @@ public final class FunctionRegistry {
     return udafEvaluator;
   }
 
+  @SuppressWarnings("deprecation")
+  public static GenericUDAFEvaluator getGenericWindowingEvaluator(String name,
+      List<ObjectInspector> argumentOIs, boolean isDistinct,
+      boolean isAllColumns) throws SemanticException {
+
+    WindowFunctionInfo finfo = windowFunctions.get(name.toLowerCase());
+    if (finfo == null) { return null;}
+    if ( !name.toLowerCase().equals(LEAD_FUNC_NAME) &&
+    !name.toLowerCase().equals(LAG_FUNC_NAME) ) {
+    return getGenericUDAFEvaluator(name, argumentOIs, isDistinct, isAllColumns);
+    }
+
+    // this must be lead/lag UDAF
+    ObjectInspector args[] = new ObjectInspector[argumentOIs.size()];
+    GenericUDAFResolver udafResolver = finfo.getfInfo().getGenericUDAFResolver();
+    GenericUDAFParameterInfo paramInfo = new SimpleGenericUDAFParameterInfo(
+    argumentOIs.toArray(args), isDistinct, isAllColumns);
+    return ((GenericUDAFResolver2) udafResolver).getEvaluator(paramInfo);
+  }
+
   /**
    * This method is shared between UDFRegistry and UDAFRegistry. methodName will
    * be "evaluate" for UDFRegistry, and "aggregate"/"evaluate"/"evaluatePartial"
@@ -1031,36 +1024,36 @@ public final class FunctionRegistry {
     }
     if (udfMethods.size() > 1) {
 
-      // if the only difference is numeric types, pick the method 
+      // if the only difference is numeric types, pick the method
       // with the smallest overall numeric type.
       int lowestNumericType = Integer.MAX_VALUE;
       boolean multiple = true;
       Method candidate = null;
       List<TypeInfo> referenceArguments = null;
-      
+
       for (Method m: udfMethods) {
         int maxNumericType = 0;
-        
+
         List<TypeInfo> argumentsAccepted = TypeInfoUtils.getParameterTypeInfos(m, argumentsPassed.size());
-        
+
         if (referenceArguments == null) {
-          // keep the arguments for reference - we want all the non-numeric 
+          // keep the arguments for reference - we want all the non-numeric
           // arguments to be the same
           referenceArguments = argumentsAccepted;
         }
-        
+
         Iterator<TypeInfo> referenceIterator = referenceArguments.iterator();
-        
+
         for (TypeInfo accepted: argumentsAccepted) {
           TypeInfo reference = referenceIterator.next();
-          
+
           if (numericTypes.containsKey(accepted)) {
             // We're looking for the udf with the smallest maximum numeric type.
             int typeValue = numericTypes.get(accepted);
             maxNumericType = typeValue > maxNumericType ? typeValue : maxNumericType;
           } else if (!accepted.equals(reference)) {
             // There are non-numeric arguments that don't match from one UDF to
-            // another. We give up at this point. 
+            // another. We give up at this point.
             throw new AmbiguousMethodException(udfClass, argumentsPassed, mlist);
           }
         }
@@ -1300,6 +1293,9 @@ public final class FunctionRegistry {
       FunctionRegistry.registerTemporaryGenericUDAF(
         functionName, (GenericUDAFResolver)
         ReflectionUtils.newInstance(udfClass, null));
+    } else if(TableFunctionResolver.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTableFunction(
+        functionName, (Class<? extends TableFunctionResolver>)udfClass);
     } else {
       return false;
     }
@@ -1349,4 +1345,96 @@ public final class FunctionRegistry {
   private FunctionRegistry() {
     // prevent instantiation
   }
+
+
+  //---------PTF functions------------
+
+  public static void registerWindowFunction(String name, GenericUDAFResolver wFn)
+  {
+    registerWindowFunction(name, wFn, true);
+  }
+
+  /**
+   * Typically a WindowFunction is the same as a UDAF. The only exceptions are Lead & Lag UDAFs. These
+   * are not registered as regular UDAFs because
+   * - we plan to support Lead & Lag as UDFs (usable only within argument expressions
+   *   of UDAFs when windowing is involved). Since mFunctions holds both UDFs and UDAFs we cannot
+   *   add both FunctionInfos to mFunctions.
+   * We choose to only register UDFs in mFunctions. The implication of this is that Lead/Lag UDAFs
+   * are only usable when windowing is involved.
+   *
+   * @param name
+   * @param wFn
+   * @param registerAsUDAF
+   */
+  public static void registerWindowFunction(String name, GenericUDAFResolver wFn, boolean registerAsUDAF)
+  {
+    FunctionInfo fInfo = null;
+    if (registerAsUDAF) {
+      registerGenericUDAF(true, name, wFn);
+      fInfo = getFunctionInfo(name);
+    }
+    else {
+      fInfo = new FunctionInfo(true,
+          name.toLowerCase(), wFn);
+    }
+
+    WindowFunctionInfo wInfo = new WindowFunctionInfo(fInfo);
+    windowFunctions.put(name.toLowerCase(), wInfo);
+  }
+
+  public static WindowFunctionInfo getWindowFunctionInfo(String name)
+  {
+    return windowFunctions.get(name.toLowerCase());
+  }
+
+  public static boolean impliesOrder(String functionName) {
+    return functionName == null ? false : UDAFS_IMPLY_ORDER.contains(functionName.toLowerCase());
+  }
+
+  static void registerHiveUDAFsAsWindowFunctions()
+  {
+    Set<String> fNames = getFunctionNames();
+    for(String fName : fNames)
+    {
+      FunctionInfo fInfo = getFunctionInfo(fName);
+      if ( fInfo.isGenericUDAF())
+      {
+        WindowFunctionInfo wInfo = new WindowFunctionInfo(fInfo);
+        windowFunctions.put(fName, wInfo);
+      }
+    }
+  }
+
+  public static boolean isTableFunction(String name)
+  {
+    FunctionInfo tFInfo = mFunctions.get(name.toLowerCase());
+    return tFInfo != null && !tFInfo.isInternalTableFunction() && tFInfo.isTableFunction();
+  }
+
+  public static TableFunctionResolver getTableFunctionResolver(String name)
+  {
+    FunctionInfo tfInfo = mFunctions.get(name.toLowerCase());
+    if(tfInfo.isTableFunction()) {
+      return (TableFunctionResolver) ReflectionUtils.newInstance(tfInfo.getFunctionClass(), null);
+    }
+    return null;
+  }
+
+  public static TableFunctionResolver getWindowingTableFunction()
+  {
+    return getTableFunctionResolver(WINDOWING_TABLE_FUNCTION);
+  }
+
+  public static TableFunctionResolver getNoopTableFunction()
+  {
+    return getTableFunctionResolver(NOOP_TABLE_FUNCTION);
+  }
+
+  public static void registerTableFunction(String name, Class<? extends TableFunctionResolver> tFnCls)
+  {
+    FunctionInfo tInfo = new FunctionInfo(name, tFnCls);
+    mFunctions.put(name.toLowerCase(), tInfo);
+  }
+
 }

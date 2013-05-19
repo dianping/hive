@@ -48,6 +48,7 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.lib.Rule;
 import org.apache.hadoop.hive.ql.lib.RuleRegExp;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
+import org.apache.hadoop.hive.ql.plan.ExprNodeColumnListDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeFieldDesc;
@@ -124,7 +125,7 @@ public final class TypeCheckProcFactory {
     return desc;
   }
 
-  public static HashMap<Node, Object> genExprNode(ASTNode expr,
+  public static Map<ASTNode, ExprNodeDesc> genExprNode(ASTNode expr,
       TypeCheckCtx tcCtx) throws SemanticException {
     // Create the walker, the rules dispatcher and the context.
     // create a walker which walks the tree in a DFS manner while maintaining
@@ -137,7 +138,8 @@ public final class TypeCheckProcFactory {
     opRules.put(new RuleRegExp("R2", HiveParser.Number + "%|" +
         HiveParser.TinyintLiteral + "%|" +
         HiveParser.SmallintLiteral + "%|" +
-        HiveParser.BigintLiteral + "%"),
+        HiveParser.BigintLiteral + "%|" +
+        HiveParser.DecimalLiteral + "%"),
         getNumExprProcessor());
     opRules
         .put(new RuleRegExp("R3", HiveParser.Identifier + "%|"
@@ -162,10 +164,23 @@ public final class TypeCheckProcFactory {
     // Create a list of topop nodes
     ArrayList<Node> topNodes = new ArrayList<Node>();
     topNodes.add(expr);
-    HashMap<Node, Object> nodeOutputs = new HashMap<Node, Object>();
+    HashMap<Node, Object> nodeOutputs = new LinkedHashMap<Node, Object>();
     ogw.startWalking(topNodes, nodeOutputs);
 
-    return nodeOutputs;
+    return convert(nodeOutputs);
+  }
+
+  // temporary type-safe casting
+  private static Map<ASTNode, ExprNodeDesc> convert(Map<Node, Object> outputs) {
+    Map<ASTNode, ExprNodeDesc> converted = new LinkedHashMap<ASTNode, ExprNodeDesc>();
+    for (Map.Entry<Node, Object> entry : outputs.entrySet()) {
+      if (entry.getKey() instanceof ASTNode && entry.getValue() instanceof ExprNodeDesc) {
+        converted.put((ASTNode)entry.getKey(), (ExprNodeDesc)entry.getValue());
+      } else {
+        LOG.warn("Invalid type entry " + entry);
+      }
+    }
+    return converted;
   }
 
   /**
@@ -238,6 +253,10 @@ public final class TypeCheckProcFactory {
           // Literal tinyint.
           v = Byte.valueOf(expr.getText().substring(
                 0, expr.getText().length() - 1));
+        } else if (expr.getText().endsWith("BD")) {
+          // Literal decimal
+          return new ExprNodeConstantDesc(TypeInfoFactory.decimalTypeInfo, 
+                expr.getText().substring(0, expr.getText().length() - 2));
         } else {
           v = Double.valueOf(expr.getText());
           v = Long.valueOf(expr.getText());
@@ -473,6 +492,7 @@ public final class TypeCheckProcFactory {
     static HashMap<Integer, String> specialUnaryOperatorTextHashMap;
     static HashMap<Integer, String> specialFunctionTextHashMap;
     static HashMap<Integer, String> conversionFunctionTextHashMap;
+    static HashSet<Integer> windowingTokens;
     static {
       specialUnaryOperatorTextHashMap = new HashMap<Integer, String>();
       specialUnaryOperatorTextHashMap.put(HiveParser.PLUS, "positive");
@@ -503,16 +523,29 @@ public final class TypeCheckProcFactory {
           serdeConstants.TIMESTAMP_TYPE_NAME);
       conversionFunctionTextHashMap.put(HiveParser.TOK_DECIMAL,
           serdeConstants.DECIMAL_TYPE_NAME);
+
+      windowingTokens = new HashSet<Integer>();
+      windowingTokens.add(HiveParser.KW_OVER);
+      windowingTokens.add(HiveParser.TOK_PARTITIONINGSPEC);
+      windowingTokens.add(HiveParser.TOK_DISTRIBUTEBY);
+      windowingTokens.add(HiveParser.TOK_SORTBY);
+      windowingTokens.add(HiveParser.TOK_CLUSTERBY);
+      windowingTokens.add(HiveParser.TOK_WINDOWSPEC);
+      windowingTokens.add(HiveParser.TOK_WINDOWRANGE);
+      windowingTokens.add(HiveParser.TOK_WINDOWVALUES);
+      windowingTokens.add(HiveParser.KW_UNBOUNDED);
+      windowingTokens.add(HiveParser.KW_PRECEDING);
+      windowingTokens.add(HiveParser.KW_FOLLOWING);
+      windowingTokens.add(HiveParser.KW_CURRENT);
+      windowingTokens.add(HiveParser.TOK_TABSORTCOLNAMEASC);
+      windowingTokens.add(HiveParser.TOK_TABSORTCOLNAMEDESC);
     }
 
-    public static boolean isRedundantConversionFunction(ASTNode expr,
+    private static boolean isRedundantConversionFunction(ASTNode expr,
         boolean isFunction, ArrayList<ExprNodeDesc> children) {
       if (!isFunction) {
         return false;
       }
-      // children is always one less than the expr.getChildCount(), since the
-      // latter contains function name.
-      assert (children.size() == expr.getChildCount() - 1);
       // conversion functions take a single parameter
       if (children.size() != 1) {
         return false;
@@ -849,6 +882,57 @@ public final class TypeCheckProcFactory {
 
       ASTNode expr = (ASTNode) nd;
 
+      /*
+       * A Windowing specification get added as a child to a UDAF invocation to distinguish it
+       * from similar UDAFs but on different windows.
+       * The UDAF is translated to a WindowFunction invocation in the PTFTranslator.
+       * So here we just return null for tokens that appear in a Window Specification.
+       * When the traversal reaches up to the UDAF invocation its ExprNodeDesc is build using the
+       * ColumnInfo in the InputRR. This is similar to how UDAFs are handled in Select lists.
+       * The difference is that there is translation for Window related tokens, so we just
+       * return null;
+       */
+      if ( windowingTokens.contains(expr.getType())) {
+        return null;
+      }
+
+      if (expr.getType() == HiveParser.TOK_TABNAME) {
+        return null;
+      }
+
+      if (expr.getType() == HiveParser.TOK_ALLCOLREF) {
+        RowResolver input = ctx.getInputRR();
+        ExprNodeColumnListDesc columnList = new ExprNodeColumnListDesc();
+        assert expr.getChildCount() <= 1;
+        if (expr.getChildCount() == 1) {
+          // table aliased (select a.*, for example)
+          ASTNode child = (ASTNode) expr.getChild(0);
+          assert child.getType() == HiveParser.TOK_TABNAME;
+          assert child.getChildCount() == 1;
+          String tableAlias = BaseSemanticAnalyzer.unescapeIdentifier(child.getChild(0).getText());
+          HashMap<String, ColumnInfo> columns = input.getFieldMap(tableAlias);
+          if (columns == null) {
+            throw new SemanticException(ErrorMsg.INVALID_TABLE_ALIAS.getMsg(child));
+          }
+          for (Map.Entry<String, ColumnInfo> colMap : columns.entrySet()) {
+            ColumnInfo colInfo = colMap.getValue();
+            if (!colInfo.getIsVirtualCol()) {
+              columnList.addColumn(new ExprNodeColumnDesc(colInfo.getType(),
+                  colInfo.getInternalName(), colInfo.getTabAlias(), false));
+            }
+          }
+        } else {
+          // all columns (select *, for example)
+          for (ColumnInfo colInfo : input.getColumnInfos()) {
+            if (!colInfo.getIsVirtualCol()) {
+              columnList.addColumn(new ExprNodeColumnDesc(colInfo.getType(),
+                  colInfo.getInternalName(), colInfo.getTabAlias(), false));
+            }
+          }
+        }
+        return columnList;
+      }
+
       // If the first child is a TOK_TABLE_OR_COL, and nodeOutput[0] is NULL,
       // and the operator is a DOT, then it's a table column reference.
       if (expr.getType() == HiveParser.DOT
@@ -880,7 +964,9 @@ public final class TypeCheckProcFactory {
         return null;
       }
 
-      boolean isFunction = (expr.getType() == HiveParser.TOK_FUNCTION);
+      boolean isFunction = (expr.getType() == HiveParser.TOK_FUNCTION ||
+          expr.getType() == HiveParser.TOK_FUNCTIONSTAR ||
+          expr.getType() == HiveParser.TOK_FUNCTIONDI);
 
       // Create all children
       int childrenBegin = (isFunction ? 1 : 0);
@@ -888,7 +974,21 @@ public final class TypeCheckProcFactory {
           .getChildCount()
           - childrenBegin);
       for (int ci = childrenBegin; ci < expr.getChildCount(); ci++) {
-        children.add((ExprNodeDesc) nodeOutputs[ci]);
+        if (nodeOutputs[ci] instanceof ExprNodeColumnListDesc) {
+          children.addAll(((ExprNodeColumnListDesc)nodeOutputs[ci]).getChildren());
+        } else {
+          children.add((ExprNodeDesc) nodeOutputs[ci]);
+        }
+      }
+
+      if (expr.getType() == HiveParser.TOK_FUNCTIONSTAR) {
+        RowResolver input = ctx.getInputRR();
+        for (ColumnInfo colInfo : input.getColumnInfos()) {
+          if (!colInfo.getIsVirtualCol()) {
+            children.add(new ExprNodeColumnDesc(colInfo.getType(),
+                colInfo.getInternalName(), colInfo.getTabAlias(), false));
+          }
+        }
       }
 
       // If any of the children contains null, then return a null

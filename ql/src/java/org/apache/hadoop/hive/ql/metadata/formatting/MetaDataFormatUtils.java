@@ -31,6 +31,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.SkewedValueList;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.index.HiveIndex;
 import org.apache.hadoop.hive.ql.index.HiveIndex.IndexType;
@@ -50,7 +51,7 @@ public final class MetaDataFormatUtils {
   public static final String FIELD_DELIM = "\t";
   public static final String LINE_DELIM = "\n";
 
-  private static final int DEFAULT_STRINGBUILDER_SIZE = 2048;
+  static final int DEFAULT_STRINGBUILDER_SIZE = 2048;
   private static final int ALIGNMENT = 20;
 
   private MetaDataFormatUtils() {
@@ -62,16 +63,22 @@ public final class MetaDataFormatUtils {
     columnInformation.append(LINE_DELIM);
   }
 
-  public static String getAllColumnsInformation(List<FieldSchema> cols) {
+  public static String getAllColumnsInformation(List<FieldSchema> cols,
+      boolean printHeader) {
     StringBuilder columnInformation = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
-    formatColumnsHeader(columnInformation);
+    if(printHeader){
+      formatColumnsHeader(columnInformation);
+    }
     formatAllFields(columnInformation, cols);
     return columnInformation.toString();
   }
 
-  public static String getAllColumnsInformation(List<FieldSchema> cols, List<FieldSchema> partCols) {
+  public static String getAllColumnsInformation(List<FieldSchema> cols, List<FieldSchema> partCols,
+      boolean printHeader) {
     StringBuilder columnInformation = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
-    formatColumnsHeader(columnInformation);
+    if(printHeader){
+      formatColumnsHeader(columnInformation);
+    }
     formatAllFields(columnInformation, cols);
 
     if ((partCols != null) && (!partCols.isEmpty())) {
@@ -86,10 +93,9 @@ public final class MetaDataFormatUtils {
 
   private static void formatAllFields(StringBuilder tableInfo, List<FieldSchema> cols) {
     for (FieldSchema col : cols) {
-      formatFieldSchemas(tableInfo, col);
+      formatOutput(col.getName(), col.getType(), getComment(col), tableInfo);
     }
   }
-
 
   public static String getAllColumnsInformation(Index index) {
     StringBuilder indexInfo = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
@@ -194,7 +200,7 @@ public final class MetaDataFormatUtils {
         formatOutput("Skewed Values:", skewedColValues.toString(), tableInfo);
       }
 
-      Map<List<String>, String> skewedColMap = storageDesc.getSkewedInfo()
+      Map<SkewedValueList, String> skewedColMap = storageDesc.getSkewedInfo()
           .getSkewedColValueLocationMaps();
       if ((skewedColMap!=null) && (skewedColMap.size() > 0)) {
         formatOutput("Skewed Value to Path:", skewedColMap.toString(),
@@ -202,9 +208,8 @@ public final class MetaDataFormatUtils {
         Map<List<String>, String> truncatedSkewedColMap = new HashMap<List<String>, String>();
         // walk through existing map to truncate path so that test won't mask it
         // then we can verify location is right
-        Set<Entry<List<String>, String>> entries = skewedColMap.entrySet();
-        for (Entry<List<String>, String> entry : entries) {
-          truncatedSkewedColMap.put(entry.getKey(),
+        for (Entry<SkewedValueList, String> entry : skewedColMap.entrySet()) {
+          truncatedSkewedColMap.put(entry.getKey().getSkewedValueList(),
               PlanUtils.removePrefixFromWarehouseConfig(entry.getValue()));
         }
         formatOutput("Skewed Value to Truncated Path:",
@@ -263,9 +268,8 @@ public final class MetaDataFormatUtils {
     }
   }
 
-  private static void formatFieldSchemas(StringBuilder tableInfo, FieldSchema col) {
-    String comment = col.getComment() != null ? col.getComment() : "None";
-    formatOutput(col.getName(), col.getType(), comment, tableInfo);
+  static String getComment(FieldSchema col) {
+    return col.getComment() != null ? col.getComment() : "None";
   }
 
   private static String formatDate(long timeInSeconds) {

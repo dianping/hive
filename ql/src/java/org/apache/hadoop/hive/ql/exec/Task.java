@@ -75,15 +75,18 @@ public abstract class Task<T extends Serializable> implements Serializable, Node
   public static final int CONVERTED_MAPJOIN = 2;
   public static final int CONVERTED_LOCAL_MAPJOIN = 3;
   public static final int BACKUP_COMMON_JOIN = 4;
-  public static final int LOCAL_MAPJOIN=5;
-
+  public static final int LOCAL_MAPJOIN = 5;
+  // The join task is converted to a mapjoin task. This can only happen if
+  // hive.auto.convert.join.noconditionaltask is set to true. No conditional task was
+  // created in case the mapjoin failed.
+  public static final int MAPJOIN_ONLY_NOBACKUP = 6;
+  public static final int CONVERTED_SORTMERGEJOIN = 7;
 
   // Descendants tasks who subscribe feeds from this task
   protected transient List<Task<? extends Serializable>> feedSubscribers;
 
   protected String id;
   protected T work;
-
   public static enum FeedType {
     DYNAMIC_PARTITIONS, // list of dynamic partitions
   };
@@ -100,6 +103,10 @@ public abstract class Task<T extends Serializable> implements Serializable, Node
     queued = false;
     this.taskCounters = new HashMap<String, Long>();
     taskTag = Task.NO_TAG;
+  }
+
+  public TaskHandle getTaskHandle() {
+    return taskHandle;
   }
 
   public void initialize(HiveConf conf, QueryPlan queryPlan, DriverContext driverContext) {
@@ -510,6 +517,9 @@ public abstract class Task<T extends Serializable> implements Serializable, Node
 
   public String getJobID() {
     return jobID;
+  }
+
+  public void shutdown() {
   }
 
   public List<FieldSchema> getResultSchema() {

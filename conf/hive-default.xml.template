@@ -71,6 +71,14 @@
 </property>
 
 <property>
+  <name>hive.cli.pretty.output.num.cols</name>
+  <value>-1</value>
+  <description>The number of columns to use when formatting output generated
+        by the DESCRIBE PRETTY table_name command.  If the value of this property
+        is -1, then hive will use the auto-detected terminal width.</description>
+</property>
+
+<property>
   <name>hive.exec.scratchdir</name>
   <value>/tmp/hive-${user.name}</value>
   <description>Scratch space for Hive jobs</description>
@@ -278,7 +286,25 @@
 <property>
   <name>hive.metastore.partition.name.whitelist.pattern</name>
   <value></value>
-  <description>Partition names will be checked against this regex pattern and rejected if not matched.  To use, enable hive.metastore.pre.event.listeners=org.apache.hadoop.hive.metastore.PartitionNameWhitelistPreEventListener  Listener will not register if this property value is empty.</description>
+  <description>Partition names will be checked against this regex pattern and rejected if not matched.</description>
+</property>
+
+<property>
+  <name>hive.metastore.disallow.incompatible.col.type.change</name>
+  <value></value>
+  <description>If true (default is false), ALTER TABLE operations which change the type of 
+    a column (say STRING) to an incompatible type (say MAP<STRING, STRING>) are disallowed.  
+    RCFile default serde (ColumnarSerde) serializes the values in such a way that the
+    datatypes can be converted from string to any type. The map is also serialized as
+    a string, which can be read as a string as well. However, with any binary 
+    serialization, this is not true. Blocking the ALTER TABLE prevents ClassCastExceptions
+    when subsequently trying to access old partitions. 
+      
+    Primitive types like INT, STRING, BIGINT, etc are compatible with each other and are 
+    not blocked.  
+
+    See HIVE-4409 for more details.
+</description>
 </property>
 
 <property>
@@ -497,7 +523,7 @@
     The merge is triggered if either of hive.merge.mapfiles or hive.merge.mapredfiles is set to true.
     If the user has set hive.merge.mapfiles to true and hive.merge.mapredfiles to false, the idea was the
     number of reducers are few, so the number of files anyway are small. However, with this optimization,
-    we are increasing the number of files possibly by a big margin. So, we merge aggresively.
+    we are increasing the number of files possibly by a big margin. So, we merge aggresively.</description>
 </property>
 
 <property>
@@ -505,7 +531,7 @@
   <value>false</value>
   <description>Whether the version of hadoop which is running supports sub-directories for tables/partitions.
     Many hive optimizations can be applied if the hadoop version supports sub-directories for
-    tables/partitions. It was added by MAPREDUCE-1501
+    tables/partitions. It was added by MAPREDUCE-1501</description>
 </property>
 
 <property>
@@ -522,6 +548,15 @@
   <description>If the bucketing/sorting properties of the table exactly match the grouping key, whether to
     perform the group by in the mapper by using BucketizedHiveInputFormat. The only downside to this
     is that it limits the number of mappers to the number of files.
+  </description>
+</property>
+
+<property>
+  <name>hive.map.groupby.sorted.testmode</name>
+  <value>false</value>
+  <description>If the bucketing/sorting properties of the table exactly match the grouping key, whether to
+    perform the group by in the mapper by using BucketizedHiveInputFormat. If the test mode is set, the plan
+    is not converted, but a query property is set to denote the same.
   </description>
 </property>
 
@@ -554,15 +589,9 @@
 </property>
 
 <property>
-  <name>hive.mapjoin.bucket.cache.size</name>
-  <value>100</value>
-  <description>How many values in each keys in the map-joined table should be cached in memory. </description>
-</property>
-
-<property>
-  <name>hive.mapjoin.cache.numrows</name>
-  <value>25000</value>
-  <description>How many rows should be cached by jdbm for map join. </description>
+  <name>hive.smbjoin.cache.rows</name>
+  <value>10000</value>
+  <description>How many rows with the same key value should be cached in memory per smb joined table. </description>
 </property>
 
 <property>
@@ -753,12 +782,6 @@
 </property>
 
 <property>
-  <name>hive.mergejob.maponly</name>
-  <value>true</value>
-  <description>Try to generate a map-only job for merging files if CombineHiveInputFormat is supported.</description>
-</property>
-
-<property>
   <name>hive.heartbeat.interval</name>
   <value>1000</value>
   <description>Send a heartbeat after this interval - used by mapjoin and filter operators</description>
@@ -780,6 +803,12 @@
   <name>hive.mapjoin.smalltable.filesize</name>
   <value>25000000</value>
   <description>The threshold for the input file size of the small tables; if the file size is smaller than this threshold, it will try to convert the common join into map join</description>
+</property>
+
+<property>
+  <name>hive.ignore.mapjoin.hint</name>
+  <value>true</value>
+  <description>Ignore the mapjoin hint</description>
 </property>
 
 <property>
@@ -806,6 +835,33 @@
   <description>Whether Hive enable the optimization about converting common join into mapjoin based on the input file size</description>
 </property>
 
+<property>
+  <name>hive.auto.convert.join.noconditionaltask</name>
+  <value>true</value>
+  <description>Whether Hive enable the optimization about converting common join into mapjoin based on the input file 
+    size. If this paramater is on, and the sum of size for n-1 of the tables/partitions for a n-way join is smaller than the
+    specified size, the join is directly converted to a mapjoin (there is no conditional task).
+  </description>
+</property>
+
+<property>
+  <name>hive.auto.convert.join.noconditionaltask.size</name>
+  <value>10000000</value>
+  <description>If hive.auto.convert.join.noconditionaltask is off, this parameter does not take affect. However, if it
+    is on, and the sum of size for n-1 of the tables/partitions for a n-way join is smaller than this size, the join is directly
+    converted to a mapjoin(there is no conditional task). The default is 10MB
+  </description>
+</property>
+
+<property>
+  <name>hive.optimize.mapjoin.mapreduce</name>
+  <value>false</value>
+  <description>If hive.auto.convert.join is off, this parameter does not take
+    affect. If it is on, and if there are map-join jobs followed by a map-reduce
+    job (for e.g a group by), each map-only job is merged with the following
+    map-reduce job.
+  </description>
+</property>
 
 <property>
   <name>hive.script.auto.progress</name>
@@ -908,10 +964,57 @@
 </property>
 
 <property>
+  <name>hive.optimize.bucketingsorting</name>
+  <value>true</value>
+  <description>If hive.enforce.bucketing or hive.enforce.sorting is true, dont create a reducer for enforcing
+    bucketing/sorting for queries of the form: 
+    insert overwrite table T2 select * from T1;
+    where T1 and T2 are bucketed/sorted by the same keys into the same number of buckets.
+  </description>
+</property>
+
+<property>
   <name>hive.enforce.sortmergebucketmapjoin</name>
   <value>false</value>
   <description>If the user asked for sort-merge bucketed map-side join, and it cannot be performed,
     should the query fail or not ?
+  </description>
+</property>
+
+<property>
+  <name>hive.auto.convert.sortmerge.join</name>
+  <value>false</value>
+  <description>Will the join be automatically converted to a sort-merge join, if the joined tables pass
+    the criteria for sort-merge join.
+  </description>
+</property>
+
+<property>
+  <name>hive.auto.convert.sortmerge.join.bigtable.selection.policy</name>
+  <value>org.apache.hadoop.hive.ql.optimizer.AvgPartitionSizeBasedBigTableSelectorForAutoSMJ</value>
+  <description>The policy to choose the big table for automatic conversion to sort-merge join.
+    By default, the table with the largest partitions is assigned the big table. All policies are:
+    . based on position of the table - the leftmost table is selected
+    org.apache.hadoop.hive.ql.optimizer.LeftmostBigTableSMJ.
+    . based on total size (all the partitions selected in the query) of the table 
+    org.apache.hadoop.hive.ql.optimizer.TableSizeBasedBigTableSelectorForAutoSMJ.
+    . based on average size (all the partitions selected in the query) of the table 
+    org.apache.hadoop.hive.ql.optimizer.AvgPartitionSizeBasedBigTableSelectorForAutoSMJ.
+    New policies can be added in future.
+  </description>
+</property>
+
+<property>
+  <name>hive.auto.convert.sortmerge.join.to.mapjoin</name>
+  <value>false</value>
+  <description>If hive.auto.convert.sortmerge.join is set to true, and a join was converted to a sort-merge join,
+    this parameter decides whether each table should be tried as a big table, and effectviely a map-join should be
+    tried. That would create a conditional task with n+1 children for a n-way join (1 child for each table as the
+    big table), and the backup task will be the sort-merge join. In some casess, a map-join would be faster than a
+    sort-merge join, if there is no advantage of having the output bucketed and sorted. For eg. if a very big sorted
+    and bucketed table with few files (say 10 files) are being joined with a very small sorter and bucketed table
+    with few files (10 files), the sort-merge join will only use 10 mappers, and a simple map-only join might be faster
+    if the complete small table can fit in memory, and a map-join can be performed.
   </description>
 </property>
 
@@ -1012,6 +1115,14 @@
 </property>
 
 <property>
+  <name>hive.optimize.reducededuplication.min.reducer</name>
+  <value>4</value>
+  <description>Reduce deduplication merges two RSs by moving key/parts/reducer-num of the child RS to parent RS.
+  That means if reducer-num of the child RS is fixed (order by or forced bucketing) and small, it can make very slow, single MR.
+  The optimization will be disabled if number of reducers is less than specified value.</description>
+</property>
+
+<property>
   <name>hive.exec.dynamic.partition</name>
   <value>true</value>
   <description>Whether or not to allow dynamic partitions in DML/DDL.</description>
@@ -1098,7 +1209,7 @@
 <property>
   <name>hive.stats.retries.wait</name>
   <value>3000</value>
-  <description>The base waiting window (in milliseconds) before the next retry. The actual wait time is calculated by baseWindow * failues + baseWindow * (failure + 1) * (random number between [0.0,1.0]).</description>
+  <description>The base waiting window (in milliseconds) before the next retry. The actual wait time is calculated by baseWindow * failues  baseWindow * (failure  1) * (random number between [0.0,1.0]).</description>
 </property>
 
 <property>
@@ -1119,6 +1230,14 @@
 </property>
 
 <property>
+  <name>hive.stats.collect.scancols</name>
+  <value>false</value>
+  <description>Whether column accesses are tracked in the QueryPlan.
+    This is useful to identify how tables are accessed and to determine if there are wasted columns that can be trimmed.
+  </description>
+</property>
+
+<property>
   <name>hive.stats.ndv.error</name>
   <value>20.0</value>
   <description>Standard error expressed in percentage. Provides a tradeoff between accuracy and compute cost.A lower value for error indicates higher accuracy and a higher compute cost.
@@ -1130,7 +1249,7 @@
   <value>200</value>
   <description>
     Determines if when the prefix of the key used for intermediate stats collection
-    exceeds a certain length, a hash of the key is used instead.  If the value < 0 then hashing
+    exceeds a certain length, a hash of the key is used instead.  If the value &lt; 0 then hashing
     is never used, if the value >= 0 then hashing is used only when the key prefixes length
     exceeds that value.  The key prefix is defined as everything preceding the task ID in the key.
   </description>
@@ -1592,7 +1711,18 @@
     Currently the query should be single sourced not having any subquery and should not have
     any aggregations or distincts (which incurrs RS), lateral views and joins.
     1. minimal : SELECT STAR, FILTER on partition columns, LIMIT only
-    2. more    : SELECT, FILTER, LIMIT only (+TABLESAMPLE, virtual columns)
+    2. more    : SELECT, FILTER, LIMIT only (TABLESAMPLE, virtual columns)
+  </description>
+</property>
+
+<property>
+  <name>hive.cache.expr.evaluation</name>
+  <value>true</value>
+  <description>
+    If true, evaluation result of deterministic expression referenced twice or more will be cached.
+    For example, in filter condition like ".. where key + 10 > 10 or key + 10 = 0"
+    "key + 10" will be evaluated/cached once and reused for following expression ("key + 10 = 0").
+    Currently, this is applied only to expressions in select or filter operator.
   </description>
 </property>
 
@@ -1607,7 +1737,6 @@
    <value>1000</value>
    <description>The number of miliseconds between HMSHandler retry attempts</description>
 </property>
-
 
 <property>
    <name>hive.server.read.socket.timeout</name>
@@ -1644,9 +1773,138 @@
 </property>
 
 <property>
+  <name>hive.exec.infer.bucket.sort</name>
+  <value>false</value>
+  <description>
+    If this is set, when writing partitions, the metadata will include the bucketing/sorting
+    properties with which the data was written if any (this will not overwrite the metadata
+    inherited from the table if the table is bucketed/sorted)
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.infer.bucket.sort.num.buckets.power.two</name>
+  <value>false</value>
+  <description>
+    If this is set, when setting the number of reducers for the map reduce task which writes the
+    final output files, it will choose a number which is a power of two, unless the user specifies
+    the number of reducers to use using mapred.reduce.tasks.  The number of reducers
+    may be set to a power of two, only to be followed by a merge task meaning preventing
+    anything from being inferred.
+    With hive.exec.infer.bucket.sort set to true:
+    Advantages:  If this is not set, the number of buckets for partitions will seem arbitrary,
+                 which means that the number of mappers used for optimized joins, for example, will
+                 be very low.  With this set, since the number of buckets used for any partition is
+                 a power of two, the number of mappers used for optimized joins will be the least
+                 number of buckets used by any partition being joined.
+    Disadvantages: This may mean a much larger or much smaller number of reducers being used in the
+                   final map reduce job, e.g. if a job was originally going to take 257 reducers,
+                   it will now take 512 reducers, similarly if the max number of reducers is 511,
+                   and a job was going to use this many, it will now use 256 reducers.
+                 
+  </description>
+</property>
+
+<property>
   <name>hive.groupby.orderby.position.alias</name>
   <value>false</value>
   <description>Whether to enable using Column Position Alias in Group By or Order By</description>
 </property>
+
+ <property>
+  <name>hive.server2.thrift.min.worker.threads</name>
+  <value>5</value>
+  <description>Minimum number of Thrift worker threads</description>
+</property>
+
+<property>
+  <name>hive.server2.thrift.max.worker.threads</name>
+  <value>100</value>
+  <description>Maximum number of Thrift worker threads</description>
+</property>
+
+<property>
+  <name>hive.server2.thrift.port</name>
+  <value>10000</value>
+  <description>Port number of HiveServer2 Thrift interface.
+  Can be overridden by setting $HIVE_SERVER2_THRIFT_PORT</description>
+</property>
+
+<property>
+  <name>hive.server2.thrift.bind.host</name>
+  <value>localhost</value>
+  <description>Bind host on which to run the HiveServer2 Thrift interface.
+  Can be overridden by setting $HIVE_SERVER2_THRIFT_BIND_HOST</description>
+</property>
+
+<property>
+  <name>hive.server2.authentication</name>
+  <value>NONE</value>
+  <description>
+    Client authentication types.
+       NONE: no authentication check
+       LDAP: LDAP/AD based authentication
+       KERBEROS: Kerberos/GSSAPI authentication
+       CUSTOM: Custom authentication provider
+               (Use with property hive.server2.custom.authentication.class)
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.custom.authentication.class</name>
+  <value></value>
+  <description>
+    Custom authentication class. Used when property
+    'hive.server2.authentication' is set to 'CUSTOM'. Provided class
+    must be a proper implementation of the interface
+    org.apache.hive.service.auth.PasswdAuthenticationProvider. HiveServer2
+    will call its Authenticate(user, passed) method to authenticate requests.
+    The implementation may optionally extend the Hadoop's
+    org.apache.hadoop.conf.Configured class to grab Hive's Configuration object.
+  </description>
+</property>
+
+<property>
+  <name>>hive.server2.authentication.kerberos.principal</name>
+  <value></value>
+  <description>
+    Kerberos server principal
+  </description>
+</property>
+
+<property>
+  <name>>hive.server2.authentication.kerberos.keytab</name>
+  <value></value>
+  <description>
+    Kerberos keytab file for server principal
+  </description>
+</property>
+ 
+<property>
+  <name>hive.server2.authentication.ldap.url</name>
+  <value></value>
+  <description>
+    LDAP connection URL
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.authentication.ldap.baseDN</name>
+  <value></value>
+  <description>
+    LDAP base DN
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.enable.doAs</name>
+  <value>true</value>
+  <description>
+   Setting this property to true will have hive server2 execute
+    hive operations as the user making the calls to it.
+  </description>
+</property>
+
+
 </configuration>
 

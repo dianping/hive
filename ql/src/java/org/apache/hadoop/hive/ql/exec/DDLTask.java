@@ -40,12 +40,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.Map.Entry;
 
-import org.antlr.stringtemplate.StringTemplate;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -87,6 +86,8 @@ import org.apache.hadoop.hive.ql.hooks.ReadEntity;
 import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.BlockMergeTask;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
+import org.apache.hadoop.hive.ql.io.rcfile.truncate.ColumnTruncateTask;
+import org.apache.hadoop.hive.ql.io.rcfile.truncate.ColumnTruncateWork;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLock;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLockManager;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLockMode;
@@ -110,9 +111,10 @@ import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer;
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc;
 import org.apache.hadoop.hive.ql.plan.AlterDatabaseDesc;
 import org.apache.hadoop.hive.ql.plan.AlterIndexDesc;
+import org.apache.hadoop.hive.ql.plan.AlterTableAlterPartDesc;
 import org.apache.hadoop.hive.ql.plan.AlterTableDesc;
-import org.apache.hadoop.hive.ql.plan.AlterTableDesc.AlterTableTypes;
 import org.apache.hadoop.hive.ql.plan.AlterTableSimpleDesc;
+import org.apache.hadoop.hive.ql.plan.AlterTableExchangePartition;
 import org.apache.hadoop.hive.ql.plan.CreateDatabaseDesc;
 import org.apache.hadoop.hive.ql.plan.CreateIndexDesc;
 import org.apache.hadoop.hive.ql.plan.CreateTableDesc;
@@ -150,6 +152,7 @@ import org.apache.hadoop.hive.ql.plan.ShowTblPropertiesDesc;
 import org.apache.hadoop.hive.ql.plan.SwitchDatabaseDesc;
 import org.apache.hadoop.hive.ql.plan.TruncateTableDesc;
 import org.apache.hadoop.hive.ql.plan.UnlockTableDesc;
+import org.apache.hadoop.hive.ql.plan.AlterTableDesc.AlterTableTypes;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
 import org.apache.hadoop.hive.ql.security.authorization.Privilege;
 import org.apache.hadoop.hive.serde.serdeConstants;
@@ -164,6 +167,7 @@ import org.apache.hadoop.hive.shims.HadoopShims;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.ToolRunner;
+import org.stringtemplate.v4.ST;
 
 /**
  * DDLTask implementation.
@@ -205,7 +209,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
             HiveConf.ConfVars.HIVE_DDL_OUTPUT_FORMAT.varname, "text"))) {
       formatter = new JsonMetaDataFormatter();
     } else {
-      formatter = new TextMetaDataFormatter();
+      formatter = new TextMetaDataFormatter(
+                      conf.getIntVar(HiveConf.ConfVars.CLIPRETTYOUTPUTNUMCOLS));
     }
 
     INTERMEDIATE_ARCHIVED_DIR_SUFFIX =
@@ -417,9 +422,20 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         return mergeFiles(db, mergeFilesDesc);
       }
 
+      AlterTableAlterPartDesc alterPartDesc = work.getAlterTableAlterPartDesc();
+      if(alterPartDesc != null) {
+        return alterTableAlterPart(db, alterPartDesc);
+      }
+
       TruncateTableDesc truncateTableDesc = work.getTruncateTblDesc();
       if (truncateTableDesc != null) {
         return truncateTable(db, truncateTableDesc);
+      }
+
+      AlterTableExchangePartition alterTableExchangePartition =
+        work.getAlterTableExchangePartition();
+      if (alterTableExchangePartition != null) {
+        return exchangeTablePartition(db, alterTableExchangePartition);
       }
 
     } catch (InvalidTableException e) {
@@ -1065,6 +1081,49 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         .getPartition(tbl, renamePartitionDesc.getNewPartSpec(), false);
     work.getInputs().add(new ReadEntity(oldPart));
     work.getOutputs().add(new WriteEntity(newPart));
+    return 0;
+  }
+
+  /**
+  * Alter partition column type in a table
+  *
+  * @param db
+  *          Database to rename the partition.
+  * @param alterPartitionDesc
+  *          change partition column type.
+  * @return Returns 0 when execution succeeds and above 0 if it fails.
+  * @throws HiveException
+  */
+  private int alterTableAlterPart(Hive db, AlterTableAlterPartDesc alterPartitionDesc)
+    throws HiveException {
+
+    Table tbl = db.getTable(alterPartitionDesc.getDbName(), alterPartitionDesc.getTableName());
+    String tabName = alterPartitionDesc.getTableName();
+
+    // This is checked by DDLSemanticAnalyzer
+    assert(tbl.isPartitioned());
+
+    List<FieldSchema> newPartitionKeys = new ArrayList<FieldSchema>();
+
+    for(FieldSchema col : tbl.getTTable().getPartitionKeys()) {
+      if (col.getName().compareTo(alterPartitionDesc.getPartKeySpec().getName()) == 0) {
+        newPartitionKeys.add(alterPartitionDesc.getPartKeySpec());
+      } else {
+        newPartitionKeys.add(col);
+      }
+    }
+
+    tbl.getTTable().setPartitionKeys(newPartitionKeys);
+
+    try {
+      db.alterTable(tabName, tbl);
+    } catch (InvalidOperationException e) {
+      throw new HiveException("Uable to update table");
+    }
+
+    work.getInputs().add(new ReadEntity(tbl));
+    work.getOutputs().add(new WriteEntity(tbl));
+
     return 0;
   }
 
@@ -1898,17 +1957,17 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         return 0;
       }
 
-      StringTemplate createTab_stmt = new StringTemplate("CREATE $" + EXTERNAL + "$ TABLE " +
+      ST createTab_stmt = new ST("CREATE <" + EXTERNAL + "> TABLE " +
           tableName + "(\n" +
-          "$" + LIST_COLUMNS + "$)\n" +
-          "$" + TBL_COMMENT + "$\n" +
-          "$" + LIST_PARTITIONS + "$\n" +
-          "$" + SORT_BUCKET + "$\n" +
-          "$" + ROW_FORMAT + "$\n" +
+          "<" + LIST_COLUMNS + ">)\n" +
+          "<" + TBL_COMMENT + ">\n" +
+          "<" + LIST_PARTITIONS + ">\n" +
+          "<" + SORT_BUCKET + ">\n" +
+          "<" + ROW_FORMAT + ">\n" +
           "LOCATION\n" +
-          "$" + TBL_LOCATION + "$\n" +
+          "<" + TBL_LOCATION + ">\n" +
           "TBLPROPERTIES (\n" +
-          "$" + TBL_PROPERTIES + "$)\n");
+          "<" + TBL_PROPERTIES + ">)\n");
 
       // For cases where the table is external
       String tbl_external = "";
@@ -2065,16 +2124,16 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         tbl_properties += StringUtils.join(realProps, ", \n");
       }
 
-      createTab_stmt.setAttribute(EXTERNAL, tbl_external);
-      createTab_stmt.setAttribute(LIST_COLUMNS, tbl_columns);
-      createTab_stmt.setAttribute(TBL_COMMENT, tbl_comment);
-      createTab_stmt.setAttribute(LIST_PARTITIONS, tbl_partitions);
-      createTab_stmt.setAttribute(SORT_BUCKET, tbl_sort_bucket);
-      createTab_stmt.setAttribute(ROW_FORMAT, tbl_row_format);
-      createTab_stmt.setAttribute(TBL_LOCATION, tbl_location);
-      createTab_stmt.setAttribute(TBL_PROPERTIES, tbl_properties);
+      createTab_stmt.add(EXTERNAL, tbl_external);
+      createTab_stmt.add(LIST_COLUMNS, tbl_columns);
+      createTab_stmt.add(TBL_COMMENT, tbl_comment);
+      createTab_stmt.add(LIST_PARTITIONS, tbl_partitions);
+      createTab_stmt.add(SORT_BUCKET, tbl_sort_bucket);
+      createTab_stmt.add(ROW_FORMAT, tbl_row_format);
+      createTab_stmt.add(TBL_LOCATION, tbl_location);
+      createTab_stmt.add(TBL_PROPERTIES, tbl_properties);
 
-      outStream.writeBytes(createTab_stmt.toString());
+      outStream.writeBytes(createTab_stmt.render());
       ((FSDataOutputStream) outStream).close();
       outStream = null;
     } catch (FileNotFoundException e) {
@@ -2273,7 +2332,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
 
       List<FieldSchema> cols = table.getCols();
       cols.addAll(table.getPartCols());
-      outStream.writeBytes(MetaDataFormatUtils.getAllColumnsInformation(cols));
+      outStream.writeBytes(
+          MetaDataFormatUtils.getAllColumnsInformation(cols, false));
       ((FSDataOutputStream) outStream).close();
       outStream = null;
     } catch (IOException e) {
@@ -2853,7 +2913,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       }
 
       formatter.describeTable(outStream, colPath, tableName, tbl, part, cols,
-                              descTbl.isFormatted(), descTbl.isExt());
+                              descTbl.isFormatted(), descTbl.isExt(), descTbl.isPretty());
 
       LOG.info("DDLTask: written data for " + tbl.getTableName());
       ((FSDataOutputStream) outStream).close();
@@ -3154,29 +3214,28 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       // validate sort columns and bucket columns
       List<String> columns = Utilities.getColumnNamesFromFieldSchema(tbl
           .getCols());
-      Utilities.validateColumnNames(columns, alterTbl.getBucketColumns());
+      if (!alterTbl.isTurnOffSorting()) {
+        Utilities.validateColumnNames(columns, alterTbl.getBucketColumns());
+      }
       if (alterTbl.getSortColumns() != null) {
         Utilities.validateColumnNames(columns, Utilities
             .getColumnNamesFromSortCols(alterTbl.getSortColumns()));
       }
 
-      int numBuckets = -1;
-      ArrayList<String> bucketCols = null;
-      ArrayList<Order> sortCols = null;
+      StorageDescriptor sd = part == null ? tbl.getTTable().getSd() : part.getTPartition().getSd();
 
-      // -1 buckets means to turn off bucketing
-      if (alterTbl.getNumberBuckets() == -1) {
-        bucketCols = new ArrayList<String>();
-        sortCols = new ArrayList<Order>();
-        numBuckets = -1;
+      if (alterTbl.isTurnOffSorting()) {
+        sd.setSortCols(new ArrayList<Order>());
+      } else if (alterTbl.getNumberBuckets() == -1) {
+        // -1 buckets means to turn off bucketing
+        sd.setBucketCols(new ArrayList<String>());
+        sd.setNumBuckets(-1);
+        sd.setSortCols(new ArrayList<Order>());
       } else {
-        bucketCols = alterTbl.getBucketColumns();
-        sortCols = alterTbl.getSortColumns();
-        numBuckets = alterTbl.getNumberBuckets();
+        sd.setBucketCols(alterTbl.getBucketColumns());
+        sd.setNumBuckets(alterTbl.getNumberBuckets());
+        sd.setSortCols(alterTbl.getSortColumns());
       }
-      tbl.getTTable().getSd().setBucketCols(bucketCols);
-      tbl.getTTable().getSd().setNumBuckets(numBuckets);
-      tbl.getTTable().getSd().setSortCols(sortCols);
     } else if (alterTbl.getOp() == AlterTableDesc.AlterTableTypes.ALTERLOCATION) {
       String newLocation = alterTbl.getNewLocation();
       try {
@@ -3747,6 +3806,10 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       String targetTableName = crtTbl.getTableName();
       tbl=db.newTable(targetTableName);
 
+      if (crtTbl.getTblProps() != null) {
+        tbl.getTTable().getParameters().putAll(crtTbl.getTblProps());
+      }
+
       tbl.setTableType(TableType.MANAGED_TABLE);
 
       if (crtTbl.isExternal()) {
@@ -3806,6 +3869,10 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         params.keySet().retainAll(paramsList);
       } else {
         params.clear();
+      }
+
+      if (crtTbl.getTblProps() != null) {
+        params.putAll(crtTbl.getTblProps());
       }
 
       if (crtTbl.isExternal()) {
@@ -3893,26 +3960,47 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
   }
 
   private int truncateTable(Hive db, TruncateTableDesc truncateTableDesc) throws HiveException {
+
+    if (truncateTableDesc.getColumnIndexes() != null) {
+      ColumnTruncateWork truncateWork = new ColumnTruncateWork(
+          truncateTableDesc.getColumnIndexes(), truncateTableDesc.getInputDir(),
+          truncateTableDesc.getOutputDir());
+      truncateWork.setListBucketingCtx(truncateTableDesc.getLbCtx());
+      truncateWork.setMapperCannotSpanPartns(true);
+      DriverContext driverCxt = new DriverContext();
+      ColumnTruncateTask taskExec = new ColumnTruncateTask();
+      taskExec.initialize(db.getConf(), null, driverCxt);
+      taskExec.setWork(truncateWork);
+      taskExec.setQueryPlan(this.getQueryPlan());
+      return taskExec.execute(driverCxt);
+    }
+
     String tableName = truncateTableDesc.getTableName();
     Map<String, String> partSpec = truncateTableDesc.getPartSpec();
 
     Table table = db.getTable(tableName, true);
 
-    FsShell fshell = new FsShell(conf);
     try {
+      // this is not transactional
       for (Path location : getLocations(db, table, partSpec)) {
-        fshell.run(new String[]{"-rmr", location.toString()});
-        location.getFileSystem(conf).mkdirs(location);
+        FileSystem fs = location.getFileSystem(conf);
+        fs.delete(location, true);
+        fs.mkdirs(location);
       }
     } catch (Exception e) {
       throw new HiveException(e);
-    } finally {
-      try {
-        fshell.close();
-      } catch (IOException e) {
-        // ignore
-      }
     }
+    return 0;
+  }
+
+  private int exchangeTablePartition(Hive db,
+      AlterTableExchangePartition exchangePartition) throws HiveException {
+    Map<String, String> partitionSpecs = exchangePartition.getPartitionSpecs();
+    Table destTable = exchangePartition.getDestinationTable();
+    Table sourceTable = exchangePartition.getSourceTable();
+    db.exchangeTablePartitions(partitionSpecs, sourceTable.getDbName(),
+        sourceTable.getTableName(),destTable.getDbName(),
+        destTable.getTableName());
     return 0;
   }
 

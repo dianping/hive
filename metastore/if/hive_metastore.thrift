@@ -131,11 +131,16 @@ struct Order {
   2: i32    order // asc(1) or desc(0)
 }
 
+// Workaround for HIVE-4322
+struct SkewedValueList {
+  1: list<string> skewedValueList
+}
+
 // this object holds all the information about skewed table
 struct SkewedInfo {
   1: list<string> skewedColNames, // skewed column names
   2: list<list<string>> skewedColValues, //skewed values
-  3: map<list<string>, string> skewedColValueLocationMaps, //skewed value to location mappings
+  3: map<SkewedValueList, string> skewedColValueLocationMaps, //skewed value to location mappings
 }
 
 // this object holds all the information about physical storage of the data belonging to a table
@@ -363,6 +368,9 @@ service ThriftHiveMetastore extends fb303.FacebookService
   // delete data (including partitions) if deleteData is set to true
   void drop_table(1:string dbname, 2:string name, 3:bool deleteData)
                        throws(1:NoSuchObjectException o1, 2:MetaException o3)
+  void drop_table_with_environment_context(1:string dbname, 2:string name, 3:bool deleteData,
+      4:EnvironmentContext environment_context)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o3)
   list<string> get_tables(1: string db_name, 2: string pattern) throws (1: MetaException o1)
   list<string> get_all_tables(1: string db_name) throws (1: MetaException o1)
 
@@ -427,14 +435,30 @@ service ThriftHiveMetastore extends fb303.FacebookService
                        throws(1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   Partition append_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals)
                        throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
+  Partition append_partition_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:list<string> part_vals, 4:EnvironmentContext environment_context)
+                       throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   Partition append_partition_by_name(1:string db_name, 2:string tbl_name, 3:string part_name)
+                       throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
+  Partition append_partition_by_name_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:string part_name, 4:EnvironmentContext environment_context)
                        throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   bool drop_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 4:bool deleteData)
                        throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  bool drop_partition_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:list<string> part_vals, 4:bool deleteData, 5:EnvironmentContext environment_context)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
   bool drop_partition_by_name(1:string db_name, 2:string tbl_name, 3:string part_name, 4:bool deleteData)
-                       throws(1:NoSuchObjectException o1, 2:MetaException o2) 
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  bool drop_partition_by_name_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:string part_name, 4:bool deleteData, 5:EnvironmentContext environment_context)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
   Partition get_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals)
                        throws(1:MetaException o1, 2:NoSuchObjectException o2)
+  Partition exchange_partition(1:map<string, string> partitionSpecs, 2:string source_db,
+      3:string source_table_name, 4:string dest_db, 5:string dest_table_name)
+      throws(1:MetaException o1, 2:NoSuchObjectException o2, 3:InvalidObjectException o3,
+      4:InvalidInputException o4)
 
   Partition get_partition_with_auth(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 
       4: string user_name, 5: list<string> group_names) throws(1:MetaException o1, 2:NoSuchObjectException o2)
@@ -498,6 +522,11 @@ service ThriftHiveMetastore extends fb303.FacebookService
   // partition keys in new_part should be the same as those in old partition.
   void rename_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 4:Partition new_part)
                        throws (1:InvalidOperationException o1, 2:MetaException o2)
+
+  // returns whether or not the partition name is valid based on the value of the config
+  // hive.metastore.partition.name.whitelist.pattern
+  bool partition_name_has_valid_characters(1:list<string> part_vals, 2:bool throw_exception)
+ 	throws(1: MetaException o1)
 
   // gets the value of the configuration key in the metastore server. returns
   // defaultValue if the key does not exist. if the configuration key does not

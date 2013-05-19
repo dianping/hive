@@ -19,62 +19,18 @@ PREHOOK: Output: default@decimal_3
 POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv7.txt' INTO TABLE DECIMAL_3
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@decimal_3
-PREHOOK: query: SELECT * FROM DECIMAL_3
+PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key, value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3
+POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key, value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
--4.4E+3	4400
-1E+99	0
-1E-99	0
-0	0
-1E+2	100
-1E+1	10
-1	1
-0.1	0
-0.01	0
-2E+2	200
-2E+1	20
-2	2
-0	0
-0.2	0
-0.02	0
-0.3	0
-0.33	0
-0.333	0
--0.3	0
--0.33	0
--0.333	0
-1	1
-2	2
-3.14	3
--1.12	-1
--1.12	-1
--1.122	-11
-1.12	1
-1.122	1
-124	124
-125.2	125
--1255.49	-1255
-3.14	3
-3.14	3
-3.14	4
-0.9999999999999999999999999	1
+NULL	0
+NULL	0
 -1234567890.123456789	-1234567890
-1234567890.12345678	1234567890
-PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key
-PREHOOK: type: QUERY
-PREHOOK: Input: default@decimal_3
-#### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key
-POSTHOOK: type: QUERY
-POSTHOOK: Input: default@decimal_3
-#### A masked pattern was here ####
--1234567890.123456789	-1234567890
--4.4E+3	4400
+-4400	4400
 -1255.49	-1255
 -1.122	-11
 -1.12	-1
@@ -84,7 +40,6 @@ POSTHOOK: Input: default@decimal_3
 -0.3	0
 0	0
 0	0
-1E-99	0
 0.01	0
 0.02	0
 0.1	0
@@ -103,33 +58,31 @@ POSTHOOK: Input: default@decimal_3
 3.14	3
 3.14	3
 3.14	4
-1E+1	10
-2E+1	20
-1E+2	100
+10	10
+20	20
+100	100
 124	124
 125.2	125
-2E+2	200
+200	200
 1234567890.12345678	1234567890
-1E+99	0
-PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key DESC
+PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key DESC, value DESC
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key DESC
+POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key DESC, value DESC
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-1E+99	0
 1234567890.12345678	1234567890
-2E+2	200
+200	200
 125.2	125
 124	124
-1E+2	100
-2E+1	20
-1E+1	10
-3.14	3
-3.14	3
+100	100
+20	20
+10	10
 3.14	4
+3.14	3
+3.14	3
 3.14	3
 2	2
 2	2
@@ -145,7 +98,6 @@ POSTHOOK: Input: default@decimal_3
 0.1	0
 0.02	0
 0.01	0
-1E-99	0
 0	0
 0	0
 -0.3	0
@@ -155,18 +107,22 @@ POSTHOOK: Input: default@decimal_3
 -1.12	-1
 -1.122	-11
 -1255.49	-1255
--4.4E+3	4400
+-4400	4400
 -1234567890.123456789	-1234567890
-PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY (key, value)
+NULL	0
+NULL	0
+PREHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key, value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY (key, value)
+POSTHOOK: query: SELECT * FROM DECIMAL_3 ORDER BY key, value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
+NULL	0
+NULL	0
 -1234567890.123456789	-1234567890
--4.4E+3	4400
+-4400	4400
 -1255.49	-1255
 -1.122	-11
 -1.12	-1
@@ -176,7 +132,6 @@ POSTHOOK: Input: default@decimal_3
 -0.3	0
 0	0
 0	0
-1E-99	0
 0.01	0
 0.02	0
 0.1	0
@@ -195,24 +150,24 @@ POSTHOOK: Input: default@decimal_3
 3.14	3
 3.14	3
 3.14	4
-1E+1	10
-2E+1	20
-1E+2	100
+10	10
+20	20
+100	100
 124	124
 125.2	125
-2E+2	200
+200	200
 1234567890.12345678	1234567890
-1E+99	0
-PREHOOK: query: SELECT DISTINCT key FROM DECIMAL_3
+PREHOOK: query: SELECT DISTINCT key FROM DECIMAL_3 ORDER BY key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT DISTINCT key FROM DECIMAL_3
+POSTHOOK: query: SELECT DISTINCT key FROM DECIMAL_3 ORDER BY key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
+NULL
 -1234567890.123456789
--4.4E+3
+-4400
 -1255.49
 -1.122
 -1.12
@@ -220,7 +175,6 @@ POSTHOOK: Input: default@decimal_3
 -0.33
 -0.3
 0
-1E-99
 0.01
 0.02
 0.1
@@ -234,14 +188,13 @@ POSTHOOK: Input: default@decimal_3
 1.122
 2
 3.14
-1E+1
-2E+1
-1E+2
+10
+20
+100
 124
 125.2
-2E+2
+200
 1234567890.12345678
-1E+99
 PREHOOK: query: SELECT key, sum(value) FROM DECIMAL_3 GROUP BY key ORDER BY key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
@@ -250,8 +203,9 @@ POSTHOOK: query: SELECT key, sum(value) FROM DECIMAL_3 GROUP BY key ORDER BY key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
+NULL	0
 -1234567890.123456789	-1234567890
--4.4E+3	4400
+-4400	4400
 -1255.49	-1255
 -1.122	-11
 -1.12	-2
@@ -259,7 +213,6 @@ POSTHOOK: Input: default@decimal_3
 -0.33	0
 -0.3	0
 0	0
-1E-99	0
 0.01	0
 0.02	0
 0.1	0
@@ -273,19 +226,18 @@ POSTHOOK: Input: default@decimal_3
 1.122	1
 2	4
 3.14	13
-1E+1	10
-2E+1	20
-1E+2	100
+10	10
+20	20
+100	100
 124	124
 125.2	125
-2E+2	200
+200	200
 1234567890.12345678	1234567890
-1E+99	0
-PREHOOK: query: SELECT value, sum(key) FROM DECIMAL_3 GROUP BY value
+PREHOOK: query: SELECT value, sum(key) FROM DECIMAL_3 GROUP BY value ORDER BY value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT value, sum(key) FROM DECIMAL_3 GROUP BY value
+POSTHOOK: query: SELECT value, sum(key) FROM DECIMAL_3 GROUP BY value ORDER BY value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
@@ -293,29 +245,29 @@ POSTHOOK: Input: default@decimal_3
 -1255	-1255.49
 -11	-1.122
 -1	-2.24
-0	1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+0	0.33
 1	5.2419999999999999999999999
 2	4
 3	9.42
 4	3.14
-10	1E+1
-20	2E+1
-100	1E+2
+10	10
+20	20
+100	100
 124	124
 125	125.2
-200	2E+2
-4400	-4.4E+3
+200	200
+4400	-4400
 1234567890	1234567890.12345678
-PREHOOK: query: SELECT * FROM DECIMAL_3 a JOIN DECIMAL_3 b ON (a.key = b.key)
+PREHOOK: query: SELECT * FROM DECIMAL_3 a JOIN DECIMAL_3 b ON (a.key = b.key) ORDER BY a.key, a.value, b.value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 a JOIN DECIMAL_3 b ON (a.key = b.key)
+POSTHOOK: query: SELECT * FROM DECIMAL_3 a JOIN DECIMAL_3 b ON (a.key = b.key) ORDER BY a.key, a.value, b.value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
 -1234567890.123456789	-1234567890	-1234567890.123456789	-1234567890
--4.4E+3	4400	-4.4E+3	4400
+-4400	4400	-4400	4400
 -1255.49	-1255	-1255.49	-1255
 -1.122	-11	-1.122	-11
 -1.12	-1	-1.12	-1
@@ -329,7 +281,6 @@ POSTHOOK: Input: default@decimal_3
 0	0	0	0
 0	0	0	0
 0	0	0	0
-1E-99	0	1E-99	0
 0.01	0	0.01	0
 0.02	0	0.02	0
 0.1	0	0.1	0
@@ -351,32 +302,31 @@ POSTHOOK: Input: default@decimal_3
 3.14	3	3.14	3
 3.14	3	3.14	3
 3.14	3	3.14	3
-3.14	3	3.14	4
+3.14	3	3.14	3
+3.14	3	3.14	3
+3.14	3	3.14	3
 3.14	3	3.14	3
 3.14	3	3.14	3
 3.14	3	3.14	3
 3.14	3	3.14	4
-3.14	3	3.14	3
-3.14	3	3.14	3
-3.14	3	3.14	3
+3.14	3	3.14	4
 3.14	3	3.14	4
 3.14	4	3.14	3
 3.14	4	3.14	3
 3.14	4	3.14	3
 3.14	4	3.14	4
-1E+1	10	1E+1	10
-2E+1	20	2E+1	20
-1E+2	100	1E+2	100
+10	10	10	10
+20	20	20	20
+100	100	100	100
 124	124	124	124
 125.2	125	125.2	125
-2E+2	200	2E+2	200
+200	200	200	200
 1234567890.12345678	1234567890	1234567890.12345678	1234567890
-1E+99	0	1E+99	0
-PREHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.14
+PREHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.14 ORDER BY key, value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.14
+POSTHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.14 ORDER BY key, value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
@@ -384,11 +334,11 @@ POSTHOOK: Input: default@decimal_3
 3.14	3
 3.14	3
 3.14	4
-PREHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.140
+PREHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.140 ORDER BY key, value
 PREHOOK: type: QUERY
 PREHOOK: Input: default@decimal_3
 #### A masked pattern was here ####
-POSTHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.140
+POSTHOOK: query: SELECT * FROM DECIMAL_3 WHERE key=3.140 ORDER BY key, value
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@decimal_3
 #### A masked pattern was here ####

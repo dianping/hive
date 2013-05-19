@@ -58,6 +58,8 @@ import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.InspectableObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.shims.HadoopShims;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.ReflectionUtils;
 
@@ -76,6 +78,8 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
   // not sure we need this exec context; but all the operators in the work
   // will pass this context throught
   private final ExecMapperContext execContext = new ExecMapperContext();
+
+  private Process executor;
 
   public MapredLocalTask() {
     super();
@@ -155,7 +159,6 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       }
 
       LOG.info("Executing: " + cmdLine);
-      Process executor = null;
 
       // Inherit Java system variables
       String hadoopOpts;
@@ -193,6 +196,14 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       // child jvm use the same memory as the parent jvm
 
       // }
+
+      //Set HADOOP_USER_NAME env variable for child process, so that
+      // it also runs with hadoop permissions for the user the job is running as
+      // This will be used by hadoop only in unsecure(/non kerberos) mode
+      HadoopShims shim = ShimLoader.getHadoopShims();
+      String endUserName = shim.getShortUserName(shim.getUGIForConf(job));
+      console.printInfo("setting HADOOP_USER_NAME\t" + endUserName);
+      variables.put("HADOOP_USER_NAME", endUserName);
 
       if (variables.containsKey(HADOOP_OPTS_KEY)) {
         variables.put(HADOOP_OPTS_KEY, variables.get(HADOOP_OPTS_KEY) + hadoopOpts);
@@ -462,4 +473,12 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     return StageType.MAPREDLOCAL;
   }
 
+  @Override
+  public void shutdown() {
+    super.shutdown();
+    if (executor != null) {
+      executor.destroy();
+      executor = null;
+    }
+  }
 }

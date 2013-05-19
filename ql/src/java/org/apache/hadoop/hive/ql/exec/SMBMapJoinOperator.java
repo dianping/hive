@@ -30,6 +30,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.persistence.RowContainer;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -40,7 +41,6 @@ import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.SMBJoinDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
-import org.apache.hadoop.hive.ql.util.ObjectPair;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.InspectableObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -69,12 +69,18 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   RowContainer<ArrayList<Object>>[] nextGroupStorage;
   RowContainer<ArrayList<Object>>[] candidateStorage;
 
-  transient Map<Byte, String> tagToAlias;
+  transient String[] tagToAlias;
   private transient boolean[] fetchDone;
   private transient boolean[] foundNextKeyGroup;
   transient boolean firstFetchHappened = false;
   private transient boolean inputFileChanged = false;
   transient boolean localWorkInited = false;
+  transient boolean initDone = false;
+
+  // This join has been converted to a SMB join by the hive optimizer. The user did not
+  // give a mapjoin hint in the query. The hive optimizer figured out that the join can be
+  // performed as a smb join, based on all the tables/partitions being joined.
+  private transient boolean convertedAutomaticallySMBJoin = false;
 
   public SMBMapJoinOperator() {
   }
@@ -85,6 +91,13 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
 
   @Override
   protected void initializeOp(Configuration hconf) throws HiveException {
+
+    // If there is a sort-merge join followed by a regular join, the SMBJoinOperator may not
+    // get initialized at all. Consider the following query:
+    // A SMB B JOIN C
+    // For the mapper processing C, The SMJ is not initialized, no need to close it either.
+    initDone = true;
+
     super.initializeOp(hconf);
 
     firstRow = true;
@@ -96,9 +109,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
 
     // get the largest table alias from order
     int maxAlias = 0;
-    for (Byte alias: order) {
-      if (alias > maxAlias) {
-        maxAlias = alias;
+    for (byte pos = 0; pos < order.length; pos++) {
+      if (pos > maxAlias) {
+        maxAlias = pos;
       }
     }
     maxAlias += 1;
@@ -110,29 +123,37 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     fetchDone = new boolean[maxAlias];
     foundNextKeyGroup = new boolean[maxAlias];
 
-    int bucketSize = HiveConf.getIntVar(hconf,
-        HiveConf.ConfVars.HIVEMAPJOINBUCKETCACHESIZE);
-    byte storePos = (byte) 0;
-    for (Byte alias : order) {
-      RowContainer rc = JoinUtil.getRowContainer(hconf,
-          rowContainerStandardObjectInspectors.get(storePos),
-          alias, bucketSize,spillTableDesc, conf, !hasFilter(storePos),
-          reporter);
-      nextGroupStorage[storePos] = rc;
-      RowContainer candidateRC = JoinUtil.getRowContainer(hconf,
-          rowContainerStandardObjectInspectors.get((byte)storePos),
-          alias,bucketSize,spillTableDesc, conf, !hasFilter(storePos),
-          reporter);
-      candidateStorage[alias] = candidateRC;
-      storePos++;
-    }
-    tagToAlias = conf.getTagToAlias();
+    int bucketSize;
 
-    for (Byte alias : order) {
-      if(alias != (byte) posBigTable) {
-        fetchDone[alias] = false;
+    // For backwards compatibility reasons we honor the older 
+    // HIVEMAPJOINBUCKETCACHESIZE if set different from default. 
+    // By hive 0.13 we should remove this code.
+    int oldVar = HiveConf.getIntVar(hconf, HiveConf.ConfVars.HIVEMAPJOINBUCKETCACHESIZE);
+    if (oldVar != 100) {
+      bucketSize = oldVar;
+    } else {
+      bucketSize = HiveConf.getIntVar(hconf, HiveConf.ConfVars.HIVESMBJOINCACHEROWS);
+    }
+
+    for (byte pos = 0; pos < order.length; pos++) {
+      RowContainer rc = JoinUtil.getRowContainer(hconf,
+          rowContainerStandardObjectInspectors[pos],
+          pos, bucketSize,spillTableDesc, conf, !hasFilter(pos),
+          reporter);
+      nextGroupStorage[pos] = rc;
+      RowContainer candidateRC = JoinUtil.getRowContainer(hconf,
+          rowContainerStandardObjectInspectors[pos],
+          pos, bucketSize,spillTableDesc, conf, !hasFilter(pos),
+          reporter);
+      candidateStorage[pos] = candidateRC;
+    }
+    tagToAlias = conf.convertToArray(conf.getTagToAlias(), String.class);
+
+    for (byte pos = 0; pos < order.length; pos++) {
+      if (pos != posBigTable) {
+        fetchDone[pos] = false;
       }
-      foundNextKeyGroup[alias] = false;
+      foundNextKeyGroup[pos] = false;
     }
   }
 
@@ -196,9 +217,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   }
 
   private byte tagForAlias(String alias) {
-    for (Map.Entry<Byte, String> entry : tagToAlias.entrySet()) {
-      if (entry.getValue().equals(alias)) {
-        return entry.getKey();
+    for (byte tag = 0; tag < tagToAlias.length; tag++) {
+      if (alias.equals(tagToAlias[tag])) {
+        return tag;
       }
     }
     return -1;
@@ -233,9 +254,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     if (!firstFetchHappened) {
       firstFetchHappened = true;
       // fetch the first group for all small table aliases
-      for (Byte t : order) {
-        if(t != (byte)posBigTable) {
-          fetchNextGroup(t);
+      for (byte pos = 0; pos < order.length; pos++) {
+        if (pos != posBigTable) {
+          fetchNextGroup(pos);
         }
       }
     }
@@ -243,18 +264,15 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     byte alias = (byte) tag;
 
     // compute keys and values as StandardObjects
-    ArrayList<Object> key = JoinUtil.computeKeys(row, joinKeys.get(alias),
-        joinKeysObjectInspectors.get(alias));
-    ArrayList<Object> value = JoinUtil.computeValues(row, joinValues.get(alias),
-        joinValuesObjectInspectors.get(alias), joinFilters.get(alias),
-        joinFilterObjectInspectors.get(alias),
-        filterMap == null ? null : filterMap[alias]);
+    ArrayList<Object> key = JoinUtil.computeKeys(row, joinKeys[alias],
+        joinKeysObjectInspectors[alias]);
+    ArrayList<Object> value = getFilteredValue(alias, row);
 
 
     //have we reached a new key group?
     boolean nextKeyGroup = processKey(alias, key);
     if (nextKeyGroup) {
-      //assert this.nextGroupStorage.get(alias).size() == 0;
+      //assert this.nextGroupStorage[alias].size() == 0;
       this.nextGroupStorage[alias].add(value);
       foundNextKeyGroup[tag] = true;
       if (tag != posBigTable) {
@@ -268,13 +286,13 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     // the big table has reached a new key group. try to let the small tables
     // catch up with the big table.
     if (nextKeyGroup) {
-      assert tag == (byte)posBigTable;
+      assert tag == posBigTable;
       List<Byte> smallestPos = null;
       do {
         smallestPos = joinOneGroup();
         //jump out the loop if we need input from the big table
       } while (smallestPos != null && smallestPos.size() > 0
-          && !smallestPos.contains((byte)this.posBigTable));
+          && !smallestPos.contains(this.posBigTable));
 
       return;
     }
@@ -313,16 +331,16 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
 
     boolean dataInCache = true;
     while (dataInCache) {
-      for (byte t : order) {
-        if (this.foundNextKeyGroup[t]
-            && this.nextKeyWritables[t] != null) {
-          promoteNextGroupToCandidate(t);
+      for (byte pos = 0; pos < order.length; pos++) {
+        if (this.foundNextKeyGroup[pos]
+            && this.nextKeyWritables[pos] != null) {
+          promoteNextGroupToCandidate(pos);
         }
       }
       joinOneGroup();
       dataInCache = false;
-      for (byte r : order) {
-        if (this.candidateStorage[r].size() > 0) {
+      for (byte pos = 0; pos < order.length; pos++) {
+        if (this.candidateStorage[pos].size() > 0) {
           dataInCache = true;
           break;
         }
@@ -332,11 +350,11 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
 
   private boolean allFetchDone() {
     boolean allFetchDone = true;
-    for (Byte tag : order) {
-      if(tag == (byte) posBigTable) {
+    for (byte pos = 0; pos < order.length; pos++) {
+      if (pos == posBigTable) {
         continue;
       }
-      allFetchDone = allFetchDone && fetchDone[tag];
+      allFetchDone = allFetchDone && fetchDone[pos];
     }
     return allFetchDone;
   }
@@ -367,7 +385,7 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
         putDummyOrEmpty(index);
         continue;
       }
-      storage.put(index, candidateStorage[index]);
+      storage[index] = candidateStorage[index];
       needFetchList.add(index);
       if (smallestPos[index] < 0) {
         break;
@@ -398,7 +416,7 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
       foundNextKeyGroup[t] = false;
     }
     //for the big table, we only need to promote the next group to the current group.
-    if(t == (byte)posBigTable) {
+    if(t == posBigTable) {
       return;
     }
 
@@ -453,9 +471,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   private void putDummyOrEmpty(Byte i) {
     // put a empty list or null
     if (noOuterJoin) {
-      storage.put(i, emptyList);
+      storage[i] = emptyList;
     } else {
-      storage.put(i, dummyObjVectors[i.intValue()]);
+      storage[i] = dummyObjVectors[i];
     }
   }
 
@@ -463,18 +481,18 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     int[] result = new int[order.length];
     ArrayList<Object> smallestOne = null;
 
-    for (byte i : order) {
-      ArrayList<Object> key = keyWritables[i];
+    for (byte pos = 0; pos < order.length; pos++) {
+      ArrayList<Object> key = keyWritables[pos];
       if (key == null) {
         continue;
       }
       if (smallestOne == null) {
         smallestOne = key;
-        result[i] = -1;
+        result[pos] = -1;
         continue;
       }
-      result[i] = compareKeys(key, smallestOne);
-      if (result[i] < 0) {
+      result[pos] = compareKeys(key, smallestOne);
+      if (result[pos] < 0) {
         smallestOne = key;
       }
     }
@@ -520,7 +538,7 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   }
 
   private void fetchOneRow(byte tag) {
-    String table = tagToAlias.get(tag);
+    String table = tagToAlias[tag];
     MergeQueue mergeQueue = aliasToMergeQueue.get(table);
 
     // The operator tree till the sink operator has already been processed while
@@ -560,6 +578,15 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     }
     closeCalled = true;
 
+    // If there is a sort-merge join followed by a regular join, the SMBJoinOperator may not
+    // get initialized at all. Consider the following query:
+    // A SMB B JOIN C
+    // For the mapper processing C, The SMJ is not initialized, no need to close it either.
+    if (!initDone) {
+      return;
+    }
+
+
     if (inputFileChanged || !firstFetchHappened) {
       //set up the fetch operator for the new input file.
       for (Map.Entry<String, MergeQueue> entry : aliasToMergeQueue.entrySet()) {
@@ -568,9 +595,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
         setUpFetchContexts(alias, mergeQueue);
       }
       firstFetchHappened = true;
-      for (Byte t : order) {
-        if(t != (byte)posBigTable) {
-          fetchNextGroup(t);
+      for (byte pos = 0; pos < order.length; pos++) {
+        if (pos != posBigTable) {
+          fetchNextGroup(pos);
         }
       }
       inputFileChanged = false;
@@ -579,11 +606,11 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     joinFinalLeftData();
 
     //clean up
-    for (Byte alias : order) {
-      if(alias != (byte) posBigTable) {
-        fetchDone[alias] = false;
+    for (int pos = 0; pos < order.length; pos++) {
+      if (pos != posBigTable) {
+        fetchDone[pos] = false;
       }
-      foundNextKeyGroup[alias] = false;
+      foundNextKeyGroup[pos] = false;
     }
 
     localWorkInited = false;
@@ -620,6 +647,14 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   @Override
   public OperatorType getType() {
     return OperatorType.MAPJOIN;
+  }
+
+  public boolean isConvertedAutomaticallySMBJoin() {
+    return convertedAutomaticallySMBJoin;
+  }
+
+  public void setConvertedAutomaticallySMBJoin(boolean convertedAutomaticallySMBJoin) {
+    this.convertedAutomaticallySMBJoin = convertedAutomaticallySMBJoin;
   }
 
   // returns rows from possibly multiple bucket files of small table in ascending order
@@ -752,8 +787,8 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
       if (keyFields == null) {
         byte tag = tagForAlias(alias);
         // joinKeys/joinKeysOI are initialized after making merge queue, so setup lazily at runtime
-        keyFields = joinKeys.get(tag);
-        keyFieldOIs = joinKeysObjectInspectors.get(tag);
+        keyFields = joinKeys[tag];
+        keyFieldOIs = joinKeysObjectInspectors[tag];
       }
       InspectableObject nextRow = segments[current].getNextRow();
       while (nextRow != null) {
@@ -779,5 +814,10 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
       keys[current] = null;
       return false;
     }
+  }
+
+  @Override
+  public boolean opAllowedConvertMapJoin() {
+    return false;
   }
 }

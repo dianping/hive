@@ -21,11 +21,15 @@ package org.apache.hadoop.hive.ql.udf;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.apache.hadoop.hive.serde2.io.BigDecimalWritable;
+import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 
 /**
  * UDFRound.
@@ -36,8 +40,12 @@ import org.apache.hadoop.io.IntWritable;
     extended = "Example:\n"
     + "  > SELECT _FUNC_(12.3456, 1) FROM src LIMIT 1;\n" + "  12.3'")
 public class UDFRound extends UDF {
-  private final BigDecimalWritable bigDecimalWritable = new BigDecimalWritable();
+  private final HiveDecimalWritable decimalWritable = new HiveDecimalWritable();
   private final DoubleWritable doubleWritable = new DoubleWritable();
+  private final LongWritable longWritable = new LongWritable();
+  private final IntWritable intWritable = new IntWritable();
+  private final ShortWritable shortWritable = new ShortWritable();
+  private final ByteWritable byteWritable = new ByteWritable();
 
   public UDFRound() {
   }
@@ -48,7 +56,7 @@ public class UDFRound extends UDF {
       doubleWritable.set(d);
     } else {
       doubleWritable.set(BigDecimal.valueOf(d).setScale(i,
-          RoundingMode.HALF_UP).doubleValue());
+              RoundingMode.HALF_UP).doubleValue());
     }
     return doubleWritable;
   }
@@ -67,25 +75,66 @@ public class UDFRound extends UDF {
     return evaluate(n, i.get());
   }
 
-  private BigDecimalWritable evaluate(BigDecimalWritable n, int i) {
+  private HiveDecimalWritable evaluate(HiveDecimalWritable n, int i) {
     if (n == null) {
       return null;
     }
-    BigDecimal bd = n.getBigDecimal();
-    bd = n.getBigDecimal().setScale(i, RoundingMode.HALF_UP);
-    bigDecimalWritable.set(bd);
-    return bigDecimalWritable;
+    HiveDecimal bd = n.getHiveDecimal();
+    try {
+      bd = n.getHiveDecimal().setScale(i, HiveDecimal.ROUND_HALF_UP);
+    } catch (NumberFormatException e) {
+      return null;
+    }
+    decimalWritable.set(bd);
+    return decimalWritable;
   }
 
-  public BigDecimalWritable evaluate(BigDecimalWritable n) {
+  public HiveDecimalWritable evaluate(HiveDecimalWritable n) {
     return evaluate(n, 0);
   }
 
-  public BigDecimalWritable evaluate(BigDecimalWritable n, IntWritable i) {
+  public HiveDecimalWritable evaluate(HiveDecimalWritable n, IntWritable i) {
     if (i == null) {
       return null;
     }
     return evaluate(n, i.get());
   }
 
+  public LongWritable evaluate(LongWritable n) {
+    if (n == null) {
+      return null;
+    }
+    longWritable.set(BigDecimal.valueOf(n.get()).setScale(0,
+            RoundingMode.HALF_UP).longValue());
+    return longWritable;
+  }
+
+  public IntWritable evaluate(IntWritable n) {
+    if (n == null) {
+      return null;
+    }
+    intWritable.set(BigDecimal.valueOf(n.get()).setScale(0,
+            RoundingMode.HALF_UP).intValue());
+    return intWritable;
+  }
+
+  public ShortWritable evaluate(ShortWritable n) {
+    if (n == null) {
+      return null;
+    }
+    shortWritable.set(BigDecimal.valueOf(n.get()).setScale(0,
+            RoundingMode.HALF_UP).shortValue());
+    return shortWritable;
+  }
+
+  public ByteWritable evaluate(ByteWritable n) {
+    if (n == null) {
+      return null;
+    }
+    byteWritable.set(BigDecimal.valueOf(n.get()).setScale(0,
+            RoundingMode.HALF_UP).byteValue());
+    return byteWritable;
+  }
+
 }
+

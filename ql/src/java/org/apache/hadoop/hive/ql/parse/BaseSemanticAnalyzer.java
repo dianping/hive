@@ -37,6 +37,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Order;
+import org.apache.hadoop.hive.metastore.api.SkewedValueList;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.QueryProperties;
@@ -49,6 +50,9 @@ import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcInputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcSerde;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -97,6 +101,7 @@ public abstract class BaseSemanticAnalyzer {
    */
   protected LineageInfo linfo;
   protected TableAccessInfo tableAccessInfo;
+  protected ColumnAccessInfo columnAccessInfo;
 
   protected static final String TEXTFILE_INPUT = TextInputFormat.class
       .getName();
@@ -109,6 +114,12 @@ public abstract class BaseSemanticAnalyzer {
   protected static final String RCFILE_INPUT = RCFileInputFormat.class
       .getName();
   protected static final String RCFILE_OUTPUT = RCFileOutputFormat.class
+      .getName();
+  protected static final String ORCFILE_INPUT = OrcInputFormat.class
+      .getName();
+  protected static final String ORCFILE_OUTPUT = OrcOutputFormat.class
+      .getName();
+  protected static final String ORCFILE_SERDE = OrcSerde.class
       .getName();
   protected static final String COLUMNAR_SERDE = ColumnarSerDe.class.getName();
 
@@ -188,6 +199,12 @@ public abstract class BaseSemanticAnalyzer {
         }
         storageFormat = true;
         break;
+      case HiveParser.TOK_TBLORCFILE:
+        inputFormat = ORCFILE_INPUT;
+        outputFormat = ORCFILE_OUTPUT;
+        shared.serde = ORCFILE_SERDE;
+        storageFormat = true;
+        break;
       case HiveParser.TOK_TABLEFILEFORMAT:
         inputFormat = unescapeSQLString(child.getChild(0).getText());
         outputFormat = unescapeSQLString(child.getChild(1).getText());
@@ -215,6 +232,10 @@ public abstract class BaseSemanticAnalyzer {
           inputFormat = RCFILE_INPUT;
           outputFormat = RCFILE_OUTPUT;
           shared.serde = COLUMNAR_SERDE;
+        } else if ("ORC".equalsIgnoreCase(conf.getVar(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT))) {
+          inputFormat = ORCFILE_INPUT;
+          outputFormat = ORCFILE_OUTPUT;
+          shared.serde = ORCFILE_SERDE;
         } else {
           inputFormat = TEXTFILE_INPUT;
           outputFormat = TEXTFILE_OUTPUT;
@@ -830,6 +851,25 @@ public abstract class BaseSemanticAnalyzer {
     this.tableAccessInfo = tableAccessInfo;
   }
 
+  /**
+   * Gets the column access information.
+   *
+   * @return ColumnAccessInfo associated with the query.
+   */
+  public ColumnAccessInfo getColumnAccessInfo() {
+    return columnAccessInfo;
+  }
+
+  /**
+   * Sets the column access information.
+   *
+   * @param columnAccessInfo The ColumnAccessInfo structure that is set immediately after
+   * the optimization phase.
+   */
+  public void setColumnAccessInfo(ColumnAccessInfo columnAccessInfo) {
+    this.columnAccessInfo = columnAccessInfo;
+  }
+
   protected HashMap<String, String> extractPartitionSpecs(Tree partspec)
       throws SemanticException {
     HashMap<String, String> partSpec = new LinkedHashMap<String, String>();
@@ -926,7 +966,7 @@ public abstract class BaseSemanticAnalyzer {
    * @return
    */
   protected ListBucketingCtx constructListBucketingCtx(List<String> skewedColNames,
-      List<List<String>> skewedValues, Map<List<String>, String> skewedColValueLocationMaps,
+      List<List<String>> skewedValues, Map<SkewedValueList, String> skewedColValueLocationMaps,
       boolean isStoredAsSubDirectories, HiveConf conf) {
     ListBucketingCtx lbCtx = new ListBucketingCtx();
     lbCtx.setSkewedColNames(skewedColNames);

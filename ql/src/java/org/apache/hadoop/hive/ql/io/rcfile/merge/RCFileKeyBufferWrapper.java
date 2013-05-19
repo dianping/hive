@@ -38,7 +38,7 @@ public class RCFileKeyBufferWrapper implements
 
   protected CompressionCodec codec;
 
-  protected RCFileKeyBufferWrapper() {
+  public RCFileKeyBufferWrapper() {
   }
 
   public static RCFileKeyBufferWrapper create(KeyBuffer currentKeyBufferObj) {
@@ -60,6 +60,54 @@ public class RCFileKeyBufferWrapper implements
   @Override
   public int compareTo(RCFileKeyBufferWrapper o) {
     return this.keyBuffer.compareTo(o.keyBuffer);
+  }
+
+  public KeyBuffer getKeyBuffer() {
+    return keyBuffer;
+  }
+
+  public void setKeyBuffer(KeyBuffer keyBuffer) {
+    this.keyBuffer = keyBuffer;
+  }
+
+  public int getRecordLength() {
+    return recordLength;
+  }
+
+  public void setRecordLength(int recordLength) {
+    this.recordLength = recordLength;
+  }
+
+  public int getKeyLength() {
+    return keyLength;
+  }
+
+  public void setKeyLength(int keyLength) {
+    this.keyLength = keyLength;
+  }
+
+  public int getCompressedKeyLength() {
+    return compressedKeyLength;
+  }
+
+  public void setCompressedKeyLength(int compressedKeyLength) {
+    this.compressedKeyLength = compressedKeyLength;
+  }
+
+  public Path getInputPath() {
+    return inputPath;
+  }
+
+  public void setInputPath(Path inputPath) {
+    this.inputPath = inputPath;
+  }
+
+  public CompressionCodec getCodec() {
+    return codec;
+  }
+
+  public void setCodec(CompressionCodec codec) {
+    this.codec = codec;
   }
 
 }

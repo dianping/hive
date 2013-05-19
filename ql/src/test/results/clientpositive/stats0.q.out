@@ -152,8 +152,6 @@ POSTHOOK: query: desc extended stats_non_partitioned
 POSTHOOK: type: DESCTABLE
 POSTHOOK: Lineage: stats_non_partitioned.key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_non_partitioned.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 	 	 
@@ -757,10 +755,12 @@ POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.Fiel
 ds=1
 PREHOOK: query: select * from stats_partitioned where ds is not null
 PREHOOK: type: QUERY
+PREHOOK: Input: default@stats_partitioned
 PREHOOK: Input: default@stats_partitioned@ds=1
 #### A masked pattern was here ####
 POSTHOOK: query: select * from stats_partitioned where ds is not null
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@stats_partitioned
 POSTHOOK: Input: default@stats_partitioned@ds=1
 #### A masked pattern was here ####
 POSTHOOK: Lineage: stats_non_partitioned.key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -1275,8 +1275,6 @@ POSTHOOK: Lineage: stats_non_partitioned.key SIMPLE [(src)src.FieldSchema(name:k
 POSTHOOK: Lineage: stats_non_partitioned.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 ds                  	string              	None                
@@ -1295,8 +1293,6 @@ POSTHOOK: Lineage: stats_non_partitioned.key SIMPLE [(src)src.FieldSchema(name:k
 POSTHOOK: Lineage: stats_non_partitioned.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 ds                  	string              	None                
@@ -1653,8 +1649,6 @@ POSTHOOK: Lineage: stats_non_partitioned.value SIMPLE [(src)src.FieldSchema(name
 POSTHOOK: Lineage: stats_non_partitioned.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 	 	 
@@ -2324,10 +2318,12 @@ POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.Fiel
 ds=1
 PREHOOK: query: select * from stats_partitioned where ds is not null
 PREHOOK: type: QUERY
+PREHOOK: Input: default@stats_partitioned
 PREHOOK: Input: default@stats_partitioned@ds=1
 #### A masked pattern was here ####
 POSTHOOK: query: select * from stats_partitioned where ds is not null
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@stats_partitioned
 POSTHOOK: Input: default@stats_partitioned@ds=1
 #### A masked pattern was here ####
 POSTHOOK: Lineage: stats_non_partitioned.key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -2850,8 +2846,6 @@ POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldS
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 ds                  	string              	None                
@@ -2874,8 +2868,6 @@ POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldS
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: stats_partitioned PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-# col_name            	data_type           	comment             
-	 	 
 key                 	string              	None                
 value               	string              	None                
 ds                  	string              	None                

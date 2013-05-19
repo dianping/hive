@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
@@ -49,7 +50,7 @@ import org.apache.hadoop.io.Writable;
  * but has more than expected groups, the additional groups are just ignored.
  *
  * NOTE: Regex SerDe supports primitive column types such as TINYINT, SMALLINT,
- * INT, BIGINT, FLOAT, DOUBLE, STRING and BOOLEAN
+ * INT, BIGINT, FLOAT, DOUBLE, STRING, BOOLEAN and DECIMAL
  *
  *
  * NOTE: This implementation uses javaStringObjectInspector for STRING. A
@@ -57,7 +58,7 @@ import org.apache.hadoop.io.Writable;
  * writableStringObjectInspector. We should switch to that when we have a UTF-8
  * based Regex library.
  */
-public class RegexSerDe implements SerDe {
+public class RegexSerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(RegexSerDe.class.getName());
 
@@ -133,6 +134,8 @@ public class RegexSerDe implements SerDe {
        columnOIs.add(PrimitiveObjectInspectorFactory.javaDoubleObjectInspector);
       } else if (typeName.equals(serdeConstants.BOOLEAN_TYPE_NAME)) {
         columnOIs.add(PrimitiveObjectInspectorFactory.javaBooleanObjectInspector);
+      } else if (typeName.equals(serdeConstants.DECIMAL_TYPE_NAME)) {
+        columnOIs.add(PrimitiveObjectInspectorFactory.javaHiveDecimalObjectInspector);
       } else {
          throw new SerDeException(getClass().getName()
          + " doesn't allow column [" + c + "] named "
@@ -225,7 +228,11 @@ public class RegexSerDe implements SerDe {
         } else if (typeName.equals(serdeConstants.BOOLEAN_TYPE_NAME)) {
           Boolean b;
           b = Boolean.valueOf(t);
-          row.set(c,b);
+          row.set(c, b);
+        } else if (typeName.equals(serdeConstants.DECIMAL_TYPE_NAME)) {
+          HiveDecimal bd;
+          bd = new HiveDecimal(t);
+          row.set(c, bd);
         }
       } catch (RuntimeException e) {
          partialMatchedRowsCount++;
@@ -249,6 +256,7 @@ public class RegexSerDe implements SerDe {
           "Regex SerDe doesn't support the serialize() method");
   }
 
+  @Override
   public SerDeStats getSerDeStats() {
     // no support for statistics
     return null;

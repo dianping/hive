@@ -80,19 +80,14 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
         nextSz = joinEmitInterval;
       }
 
-
-      ArrayList<Object> nr = JoinUtil.computeValues(row, joinValues.get(alias),
-          joinValuesObjectInspectors.get(alias), joinFilters.get(alias),
-          joinFilterObjectInspectors.get(alias),
-          filterMap == null ? null : filterMap[alias]);
-
+      ArrayList<Object> nr = getFilteredValue(alias, row);
 
       if (handleSkewJoin) {
         skewJoinKeyContext.handleSkew(tag);
       }
 
       // number of rows for the key in the given table
-      int sz = storage.get(alias).size();
+      int sz = storage[alias].size();
       StructObjectInspector soi = (StructObjectInspector) inputObjInspectors[tag];
       StructField sf = soi.getStructFieldRef(Utilities.ReduceField.KEY
           .toString());
@@ -107,7 +102,7 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
           // storage,
           // to preserve the correctness for outer joins.
           checkAndGenObject();
-          storage.get(alias).clear();
+          storage[alias].clear();
         }
       } else {
         if (sz == nextSz) {
@@ -128,7 +123,7 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
         endGroup();
         startGroup();
       }
-      storage.get(alias).add(nr);
+      storage[alias].add(nr);
     } catch (Exception e) {
       e.printStackTrace();
       throw new HiveException(e);
@@ -272,6 +267,16 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
     // Since skew join optimization makes a copy of the tree above joins, and
     // there is no multi-query optimization in place, let us not use skew join
     // optimizations for now.
+    return false;
+  }
+
+  @Override
+  public boolean opAllowedBeforeSortMergeJoin() {
+    // If a join occurs before the sort-merge join, it is not useful to convert the the sort-merge
+    // join to a mapjoin. It might be simpler to perform the join and then a sort-merge join
+    // join. By converting the sort-merge join to a map-join, the job will be executed in 2
+    // mapjoins in the best case. The number of inputs for the join is more than 1 so it would
+    // be difficult to figure out the big table for the mapjoin.
     return false;
   }
 }

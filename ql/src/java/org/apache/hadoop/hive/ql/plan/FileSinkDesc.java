@@ -50,6 +50,16 @@ public class FileSinkDesc extends AbstractOperatorDesc {
   private String staticSpec; // static partition spec ends with a '/'
   private boolean gatherStats;
 
+  // Consider a query like:
+  // insert overwrite table T3 select ... from T1 join T2 on T1.key = T2.key;
+  // where T1, T2 and T3 are sorted and bucketed by key into the same number of buckets,
+  // We dont need a reducer to enforce bucketing and sorting for T3.
+  // The field below captures the fact that the reducer introduced to enforce sorting/
+  // bucketing of T3 has been removed.
+  // In this case, a sort-merge join is needed, and so the sort-merge join between T1 and T2
+  // cannot be performed as a map-only job
+  private transient boolean removedReduceSinkBucketSort;
+
   // This file descriptor is linked to other file descriptors.
   // One use case is that, a union->select (star)->file sink, is broken down.
   // For eg: consider a query like:
@@ -65,6 +75,8 @@ public class FileSinkDesc extends AbstractOperatorDesc {
   private boolean statsReliable;
   private ListBucketingCtx lbCtx;
   private int maxStatsKeyPrefixLength = -1;
+
+  private boolean statsCollectRawDataSize;
 
   public FileSinkDesc() {
   }
@@ -115,6 +127,7 @@ public class FileSinkDesc extends AbstractOperatorDesc {
     ret.setLinkedFileSinkDesc(linkedFileSinkDesc);
     ret.setStatsReliable(statsReliable);
     ret.setMaxStatsKeyPrefixLength(maxStatsKeyPrefixLength);
+    ret.setStatsCollectRawDataSize(statsCollectRawDataSize);
     return (Object) ret;
   }
 
@@ -353,4 +366,19 @@ public class FileSinkDesc extends AbstractOperatorDesc {
     this.maxStatsKeyPrefixLength = maxStatsKeyPrefixLength;
   }
 
+  public boolean isStatsCollectRawDataSize() {
+    return statsCollectRawDataSize;
+  }
+
+  public void setStatsCollectRawDataSize(boolean statsCollectRawDataSize) {
+    this.statsCollectRawDataSize = statsCollectRawDataSize;
+  }
+
+  public boolean isRemovedReduceSinkBucketSort() {
+    return removedReduceSinkBucketSort;
+  }
+
+  public void setRemovedReduceSinkBucketSort(boolean removedReduceSinkBucketSort) {
+    this.removedReduceSinkBucketSort = removedReduceSinkBucketSort;
+  }
 }

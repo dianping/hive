@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
+import org.apache.hadoop.hive.ql.util.JavaDataModel;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
@@ -185,11 +186,17 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
             foi);
     }
 
-    public static class BooleanStatsAgg implements AggregationBuffer {
+    @AggregationType(estimable = true)
+    public static class BooleanStatsAgg extends AbstractAggregationBuffer {
       public String columnType;                        /* Datatype of column */
       public long countTrues;  /* Count of number of true values seen so far */
       public long countFalses; /* Count of number of false values seen so far */
       public long countNulls;  /* Count of number of null values seen so far */
+      @Override
+      public int estimate() {
+        JavaDataModel model = JavaDataModel.get();
+        return model.primitive2() * 3 + model.lengthFor(columnType);
+      }
     };
 
     @Override
@@ -229,24 +236,32 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     public void iterate(AggregationBuffer agg, Object[] parameters) throws HiveException {
       Object p = parameters[0];
       BooleanStatsAgg myagg = (BooleanStatsAgg) agg;
-      if (p == null) {
-        myagg.countNulls++;
+      boolean emptyTable = false;
+
+      if (parameters[1] == null) {
+        emptyTable = true;
       }
-      else {
-        try {
-          boolean v = PrimitiveObjectInspectorUtils.getBoolean(p, inputOI);
-          if (v == false) {
-            myagg.countFalses++;
-          } else if (v == true){
-            myagg.countTrues++;
-          }
-        } catch (NumberFormatException e) {
-          if (!warned) {
-            warned = true;
-            LOG.warn(getClass().getSimpleName() + " "
-                + StringUtils.stringifyException(e));
-            LOG.warn(getClass().getSimpleName()
-                + " ignoring similar exceptions.");
+
+      if (!emptyTable) {
+        if (p == null) {
+          myagg.countNulls++;
+        }
+        else {
+          try {
+            boolean v = PrimitiveObjectInspectorUtils.getBoolean(p, inputOI);
+            if (v == false) {
+              myagg.countFalses++;
+            } else if (v == true){
+              myagg.countTrues++;
+            }
+          } catch (NumberFormatException e) {
+            if (!warned) {
+              warned = true;
+              LOG.warn(getClass().getSimpleName() + " "
+                  + StringUtils.stringifyException(e));
+              LOG.warn(getClass().getSimpleName()
+                  + " ignoring similar exceptions.");
+            }
           }
         }
       }
@@ -418,7 +433,9 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       }
     }
 
-    public static class LongStatsAgg implements AggregationBuffer {
+
+    @AggregationType(estimable = true)
+    public static class LongStatsAgg extends AbstractAggregationBuffer {
       public String columnType;
       public long min;                              /* Minimum value seen so far */
       public long max;                              /* Maximum value seen so far */
@@ -426,6 +443,12 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       public LongNumDistinctValueEstimator numDV;    /* Distinct value estimator */
       public boolean firstItem;                     /* First item in the aggBuf? */
       public int numBitVectors;
+      @Override
+      public int estimate() {
+        JavaDataModel model = JavaDataModel.get();
+        return model.primitive1() * 2 + model.primitive2() * 3 +
+            model.lengthFor(columnType) + model.lengthFor(numDV);
+      }
     };
 
     @Override
@@ -472,13 +495,23 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     public void iterate(AggregationBuffer agg, Object[] parameters) throws HiveException {
       Object p = parameters[0];
       LongStatsAgg myagg = (LongStatsAgg) agg;
+      boolean emptyTable = false;
+
+      if (parameters[1] == null) {
+        emptyTable = true;
+      }
 
       if (myagg.firstItem) {
-        int numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        int numVectors = 0;
+        if (!emptyTable) {
+          numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        }
         initNDVEstimator(myagg, numVectors);
         myagg.firstItem = false;
         myagg.numBitVectors = numVectors;
       }
+
+      if (!emptyTable) {
 
       //Update null counter if a null value is seen
       if (p == null) {
@@ -510,6 +543,7 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
                 + " ignoring similar exceptions.");
           }
         }
+      }
       }
     }
 
@@ -572,7 +606,11 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     @Override
     public Object terminate(AggregationBuffer agg) throws HiveException {
       LongStatsAgg myagg = (LongStatsAgg) agg;
-      long numDV = myagg.numDV.estimateNumDistinctValues();
+
+      long numDV = 0;
+      if (myagg.numBitVectors != 0) {
+        numDV = myagg.numDV.estimateNumDistinctValues();
+      }
 
       // Serialize the result struct
       ((Text) result[0]).set(myagg.columnType);
@@ -715,7 +753,8 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       }
     }
 
-    public static class DoubleStatsAgg implements AggregationBuffer {
+    @AggregationType(estimable = true)
+    public static class DoubleStatsAgg extends AbstractAggregationBuffer {
       public String columnType;
       public double min;                            /* Minimum value seen so far */
       public double max;                            /* Maximum value seen so far */
@@ -723,6 +762,12 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       public DoubleNumDistinctValueEstimator numDV;  /* Distinct value estimator */
       public boolean firstItem;                     /* First item in the aggBuf? */
       public int numBitVectors;
+      @Override
+      public int estimate() {
+        JavaDataModel model = JavaDataModel.get();
+        return model.primitive1() * 2 + model.primitive2() * 3 +
+            model.lengthFor(columnType) + model.lengthFor(numDV);
+      }
     };
 
     @Override
@@ -770,42 +815,54 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     public void iterate(AggregationBuffer agg, Object[] parameters) throws HiveException {
       Object p = parameters[0];
       DoubleStatsAgg myagg = (DoubleStatsAgg) agg;
+      boolean emptyTable = false;
+
+      if (parameters[1] == null) {
+        emptyTable = true;
+      }
 
       if (myagg.firstItem) {
-        int numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        int numVectors = 0;
+        if (!emptyTable) {
+          numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        }
         initNDVEstimator(myagg, numVectors);
         myagg.firstItem = false;
         myagg.numBitVectors = numVectors;
       }
 
-      //Update null counter if a null value is seen
-      if (p == null) {
-        myagg.countNulls++;
-      }
-      else {
-        try {
-          double v = PrimitiveObjectInspectorUtils.getDouble(p, inputOI);
+      if (!emptyTable) {
 
-          //Update min counter if new value is less than min seen so far
-          if (v < myagg.min) {
-            myagg.min = v;
-          }
+        //Update null counter if a null value is seen
+        if (p == null) {
+          myagg.countNulls++;
+        }
+        else {
+          try {
 
-          //Update max counter if new value is greater than max seen so far
-          if (v > myagg.max) {
-            myagg.max = v;
-          }
+            double v = PrimitiveObjectInspectorUtils.getDouble(p, inputOI);
 
-          // Add value to NumDistinctValue Estimator
-          myagg.numDV.addToEstimator(v);
+            //Update min counter if new value is less than min seen so far
+            if (v < myagg.min) {
+              myagg.min = v;
+            }
 
-        } catch (NumberFormatException e) {
-          if (!warned) {
-            warned = true;
-            LOG.warn(getClass().getSimpleName() + " "
-                + StringUtils.stringifyException(e));
-            LOG.warn(getClass().getSimpleName()
-                + " ignoring similar exceptions.");
+            //Update max counter if new value is greater than max seen so far
+            if (v > myagg.max) {
+              myagg.max = v;
+            }
+
+            // Add value to NumDistinctValue Estimator
+            myagg.numDV.addToEstimator(v);
+
+          } catch (NumberFormatException e) {
+            if (!warned) {
+              warned = true;
+              LOG.warn(getClass().getSimpleName() + " "
+                  + StringUtils.stringifyException(e));
+              LOG.warn(getClass().getSimpleName()
+                  + " ignoring similar exceptions.");
+            }
           }
         }
       }
@@ -870,7 +927,11 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     @Override
     public Object terminate(AggregationBuffer agg) throws HiveException {
       DoubleStatsAgg myagg = (DoubleStatsAgg) agg;
-      long numDV = myagg.numDV.estimateNumDistinctValues();
+      long numDV = 0;
+
+      if (myagg.numBitVectors != 0) {
+        numDV = myagg.numDV.estimateNumDistinctValues();
+      }
 
       // Serialize the result struct
       ((Text) result[0]).set(myagg.columnType);
@@ -1022,7 +1083,8 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       }
     }
 
-    public static class StringStatsAgg implements AggregationBuffer {
+    @AggregationType(estimable = true)
+    public static class StringStatsAgg extends AbstractAggregationBuffer {
       public String columnType;
       public long maxLength;                           /* Maximum length seen so far */
       public long sumLength;             /* Sum of lengths of all values seen so far */
@@ -1031,6 +1093,12 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       public StringNumDistinctValueEstimator numDV;      /* Distinct value estimator */
       public int numBitVectors;
       public boolean firstItem;
+      @Override
+      public int estimate() {
+        JavaDataModel model = JavaDataModel.get();
+        return model.primitive1() * 2 + model.primitive2() * 4 +
+            model.lengthFor(columnType) + model.lengthFor(numDV);
+      }
     };
 
     @Override
@@ -1082,44 +1150,56 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     public void iterate(AggregationBuffer agg, Object[] parameters) throws HiveException {
       Object p = parameters[0];
       StringStatsAgg myagg = (StringStatsAgg) agg;
+      boolean emptyTable = false;
+
+      if (parameters[1] == null) {
+        emptyTable = true;
+      }
 
       if (myagg.firstItem) {
-        int numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        int numVectors = 0;
+        if (!emptyTable) {
+          numVectors = PrimitiveObjectInspectorUtils.getInt(parameters[1], numVectorsOI);
+        }
         initNDVEstimator(myagg, numVectors);
         myagg.firstItem = false;
         myagg.numBitVectors = numVectors;
       }
 
-      // Update null counter if a null value is seen
-      if (p == null) {
-        myagg.countNulls++;
-      }
-      else {
-        try {
-          String v = PrimitiveObjectInspectorUtils.getString(p, inputOI);
+      if (!emptyTable) {
 
-          // Update max length if new length is greater than the ones seen so far
-          int len = v.length();
-          if (len > myagg.maxLength) {
-            myagg.maxLength = len;
-          }
+        // Update null counter if a null value is seen
+        if (p == null) {
+          myagg.countNulls++;
+        }
+        else {
+          try {
 
-          // Update sum length with the new length
-          myagg.sumLength += len;
+            String v = PrimitiveObjectInspectorUtils.getString(p, inputOI);
 
-          // Increment count of values seen so far
-          myagg.count++;
+            // Update max length if new length is greater than the ones seen so far
+            int len = v.length();
+            if (len > myagg.maxLength) {
+              myagg.maxLength = len;
+            }
 
-          // Add string value to NumDistinctValue Estimator
-          myagg.numDV.addToEstimator(v);
+            // Update sum length with the new length
+            myagg.sumLength += len;
 
-        } catch (NumberFormatException e) {
-          if (!warned) {
-            warned = true;
-            LOG.warn(getClass().getSimpleName() + " "
-                + StringUtils.stringifyException(e));
-            LOG.warn(getClass().getSimpleName()
-                + " ignoring similar exceptions.");
+            // Increment count of values seen so far
+            myagg.count++;
+
+            // Add string value to NumDistinctValue Estimator
+            myagg.numDV.addToEstimator(v);
+
+          } catch (NumberFormatException e) {
+            if (!warned) {
+              warned = true;
+              LOG.warn(getClass().getSimpleName() + " "
+                  + StringUtils.stringifyException(e));
+              LOG.warn(getClass().getSimpleName()
+                  + " ignoring similar exceptions.");
+            }
           }
         }
       }
@@ -1186,8 +1266,18 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     @Override
     public Object terminate(AggregationBuffer agg) throws HiveException {
       StringStatsAgg myagg = (StringStatsAgg) agg;
-      long numDV = myagg.numDV.estimateNumDistinctValues();
-      double avgLength = (double)(myagg.sumLength/(1.0 * (myagg.count + myagg.countNulls)));
+
+      long numDV = 0;
+      double avgLength = 0.0;
+      long total = myagg.count + myagg.countNulls;
+
+      if (myagg.numBitVectors != 0) {
+        numDV = myagg.numDV.estimateNumDistinctValues();
+      }
+
+      if (total != 0) {
+         avgLength = (double)(myagg.sumLength / (1.0 * total));
+      }
 
       // Serialize the result struct
       ((Text) result[0]).set(myagg.columnType);
@@ -1316,12 +1406,18 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
       }
     }
 
-    public static class BinaryStatsAgg implements AggregationBuffer {
+    @AggregationType(estimable = true)
+    public static class BinaryStatsAgg extends AbstractAggregationBuffer {
       public String columnType;
       public long maxLength;                           /* Maximum length seen so far */
       public long sumLength;             /* Sum of lengths of all values seen so far */
       public long count;                          /* Count of all values seen so far */
       public long countNulls;          /* Count of number of null values seen so far */
+      @Override
+      public int estimate() {
+        JavaDataModel model = JavaDataModel.get();
+        return model.primitive2() * 4 + model.lengthFor(columnType);
+      }
     };
 
     @Override
@@ -1347,34 +1443,41 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     public void iterate(AggregationBuffer agg, Object[] parameters) throws HiveException {
       Object p = parameters[0];
       BinaryStatsAgg myagg = (BinaryStatsAgg) agg;
+      boolean emptyTable = false;
 
-      // Update null counter if a null value is seen
-      if (p == null) {
-        myagg.countNulls++;
+      if (parameters[1] == null) {
+        emptyTable = true;
       }
-      else {
-        try {
-          BytesWritable v = PrimitiveObjectInspectorUtils.getBinary(p, inputOI);
 
-          // Update max length if new length is greater than the ones seen so far
-          int len = v.getLength();
-          if (len > myagg.maxLength) {
-            myagg.maxLength = len;
-          }
+      if (!emptyTable) {
+        // Update null counter if a null value is seen
+        if (p == null) {
+          myagg.countNulls++;
+        }
+        else {
+          try {
+            BytesWritable v = PrimitiveObjectInspectorUtils.getBinary(p, inputOI);
 
-          // Update sum length with the new length
-          myagg.sumLength += len;
+            // Update max length if new length is greater than the ones seen so far
+            int len = v.getLength();
+            if (len > myagg.maxLength) {
+              myagg.maxLength = len;
+            }
 
-          // Increment count of values seen so far
-          myagg.count++;
+            // Update sum length with the new length
+            myagg.sumLength += len;
 
-        } catch (NumberFormatException e) {
-          if (!warned) {
-            warned = true;
-            LOG.warn(getClass().getSimpleName() + " "
-                + StringUtils.stringifyException(e));
-            LOG.warn(getClass().getSimpleName()
-                + " ignoring similar exceptions.");
+            // Increment count of values seen so far
+            myagg.count++;
+
+          } catch (NumberFormatException e) {
+            if (!warned) {
+              warned = true;
+              LOG.warn(getClass().getSimpleName() + " "
+                  + StringUtils.stringifyException(e));
+              LOG.warn(getClass().getSimpleName()
+                  + " ignoring similar exceptions.");
+            }
           }
         }
       }
@@ -1440,7 +1543,12 @@ public class GenericUDAFComputeStats extends AbstractGenericUDAFResolver {
     @Override
     public Object terminate(AggregationBuffer agg) throws HiveException {
       BinaryStatsAgg myagg = (BinaryStatsAgg) agg;
-      double avgLength = (double)(myagg.sumLength/(1.0 * (myagg.count + myagg.countNulls)));
+      double avgLength = 0.0;
+      long count = myagg.count + myagg.countNulls;
+
+      if (count != 0) {
+        avgLength = (double)(myagg.sumLength / (1.0 * (myagg.count + myagg.countNulls)));
+      }
 
       // Serialize the result struct
       ((Text) result[0]).set(myagg.columnType);
