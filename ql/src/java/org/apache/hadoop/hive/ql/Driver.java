@@ -106,7 +106,6 @@ import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ReflectionUtils;
 
 public class Driver implements CommandProcessor {
@@ -1003,7 +1002,7 @@ public class Driver implements CommandProcessor {
     StringBuilder sb = new StringBuilder();
     String userName;
     try {
-      userName = UserGroupInformation.getLoginUser().getShortUserName();
+      userName = conf.getUser();
     } catch (IOException e) {
       e.printStackTrace();
       userName = "";
