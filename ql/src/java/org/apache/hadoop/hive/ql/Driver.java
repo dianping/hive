@@ -106,6 +106,7 @@ import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ReflectionUtils;
 
 public class Driver implements CommandProcessor {
@@ -1000,7 +1001,15 @@ public class Driver implements CommandProcessor {
 
   private void logCmdInfo(Log log, String cmd, PerfLogger prefLogger){
     StringBuilder sb = new StringBuilder();
-    sb.append(cmd.replace('\t',' ').replace('\n', ' ')).append(COLUMN_SEP)
+    String userName;
+    try {
+      userName = UserGroupInformation.getLoginUser().getShortUserName();
+    } catch (IOException e) {
+      e.printStackTrace();
+      userName = "";
+    }
+    sb.append(userName).append(COLUMN_SEP)
+      .append(cmd.replace('\t',' ').replace('\n', ' ')).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getEndTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
