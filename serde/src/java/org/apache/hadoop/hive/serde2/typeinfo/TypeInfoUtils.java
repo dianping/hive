@@ -22,6 +22,7 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,10 +35,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
@@ -55,7 +56,7 @@ public final class TypeInfoUtils {
   /**
    * Return the extended TypeInfo from a Java type. By extended TypeInfo, we
    * allow unknownType for java.lang.Object.
-   * 
+   *
    * @param t
    *          The Java type.
    * @param m
@@ -147,7 +148,7 @@ public final class TypeInfoUtils {
 
   /**
    * Get the parameter TypeInfo for a method.
-   * 
+   *
    * @param size
    *          In case the last parameter of Method is an array, we will try to
    *          return a List<TypeInfo> with the specified size by repeating the
@@ -198,7 +199,7 @@ public final class TypeInfoUtils {
    * are valid inputs:
    * "int,string,map<string,int>,list<map<int,list<string>>>,list<struct<a:int,b:string>>"
    * The separators between TypeInfos can be ",", ":", or ";".
-   * 
+   *
    * In order to use this class: TypeInfoParser parser = new
    * TypeInfoParser("int,string"); ArrayList<TypeInfo> typeInfos =
    * parser.parseTypeInfos();
@@ -224,7 +225,7 @@ public final class TypeInfoUtils {
      * Tokenize the typeInfoString. The rule is simple: all consecutive
      * alphadigits and '_', '.' are in one token, and all other characters are
      * one character per token.
-     * 
+     *
      * tokenize("map<int,string>") should return
      * ["map","<","int",",","string",">"]
      */
@@ -400,8 +401,8 @@ public final class TypeInfoUtils {
 
   }
 
-  static HashMap<TypeInfo, ObjectInspector> cachedStandardObjectInspector =
-      new HashMap<TypeInfo, ObjectInspector>();
+  static Map<TypeInfo, ObjectInspector> cachedStandardObjectInspector =
+      new ConcurrentHashMap<TypeInfo, ObjectInspector>() ;
 
   /**
    * Returns the standard object inspector that can be used to translate an
@@ -477,8 +478,8 @@ public final class TypeInfoUtils {
     return result;
   }
 
-  static HashMap<TypeInfo, ObjectInspector> cachedStandardJavaObjectInspector =
-      new HashMap<TypeInfo, ObjectInspector>();
+  static Map<TypeInfo, ObjectInspector> cachedStandardJavaObjectInspector =
+      new ConcurrentHashMap<TypeInfo, ObjectInspector>();
 
   /**
    * Returns the standard object inspector that can be used to translate an
