@@ -237,7 +237,8 @@ public class RCFileMergeMapper extends MapReduceBase implements
     FileSystem fs = outpath.getFileSystem(job);
     Path backupPath = backupOutputPath(fs, outpath, job);
     Utilities.mvFileToFinalPath(outputPath, job, success, LOG, dynPartCtx, null);
-    fs.delete(backupPath, true);
+    if (backupPath != null) {
+      fs.delete(backupPath, true);
+    }
   }
-
 }

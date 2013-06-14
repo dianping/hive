@@ -240,6 +240,7 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
       } catch (Exception e) {
         console.printError("RCFile Merger Job Close Error", "\n"
             + org.apache.hadoop.util.StringUtils.stringifyException(e));
+        e.printStackTrace(System.err);
         success = false;
         returnVal = -500;
       }
