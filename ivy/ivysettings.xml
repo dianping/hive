@@ -31,6 +31,7 @@
   -->
 
   <property name="repo.maven.org" value="http://repo1.maven.org/maven2/" override="false"/>
+  <property name="dprepo.maven.org" value="http://mvn.dianpingoa.com/third-party/" override="false"/>
   <property name="snapshot.apache.org" value="https://repository.apache.org/content/repositories/snapshots/" override="false"/>
   <property name="maven2.pattern" value="[organisation]/[module]/[revision]/[module]-[revision](-[classifier])"/>
   <property name="repo.dir" value="${user.home}/.m2/repository"/>
@@ -48,6 +49,7 @@
     </url>
 
     <ibiblio name="maven2" root="${repo.maven.org}" pattern="${maven2.pattern.ext}" m2compatible="true"/>
+    <ibiblio name="dpmaven" root="${dprepo.maven.org}" pattern="${maven2.pattern.ext}" m2compatible="true"/>
     <ibiblio name="apache-snapshot" root="${snapshot.apache.org}" m2compatible="true"
              checkmodified="${ivy.checkmodified}" 
              changingPattern="${ivy.changingPattern}"/>
@@ -64,6 +66,7 @@
     <chain name="default" dual="true" returnFirst="true" 
            checkmodified="${ivy.checkmodified}" 
            changingPattern="${ivy.changingPattern}">
+      <resolver ref="dpmaven"/>
       <resolver ref="apache-snapshot"/>
       <resolver ref="maven2"/>
       <resolver ref="datanucleus-repo"/>
