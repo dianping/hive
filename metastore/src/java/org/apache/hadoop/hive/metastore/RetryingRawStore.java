@@ -24,6 +24,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.UndeclaredThrowableException;
 
+import javax.jdo.JDOException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -96,6 +98,7 @@ public class RetryingRawStore implements InvocationHandler {
     boolean gotNewConnectUrl = false;
     boolean reloadConf = HiveConf.getBoolVar(hiveConf,
         HiveConf.ConfVars.METASTOREFORCERELOADCONF);
+    boolean reloadConfOnJdoException = false;
 
     if (reloadConf) {
       updateConnectionURL(getConf(), null);
@@ -105,7 +108,7 @@ public class RetryingRawStore implements InvocationHandler {
     Exception caughtException = null;
     while (true) {
       try {
-        if (reloadConf || gotNewConnectUrl) {
+        if (reloadConf || gotNewConnectUrl || reloadConfOnJdoException) {
           initMS();
         }
         ret = method.invoke(base, args);
@@ -115,7 +118,14 @@ public class RetryingRawStore implements InvocationHandler {
       } catch (UndeclaredThrowableException e) {
         throw e.getCause();
       } catch (InvocationTargetException e) {
-        throw e.getCause();
+        Throwable t = e.getTargetException();
+        if (t instanceof JDOException){
+          caughtException = (JDOException) e.getTargetException();
+          reloadConfOnJdoException = true;
+          LOG.error("rawstore jdoexception:" + caughtException.toString());
+        }else {
+            throw e.getCause();
+        }
       }
 
       if (retryCount >= retryLimit) {
