@@ -1,0 +1,20 @@
+----------------------------------------------------------------
+2013-09-24 01:56:12.892 GMT:
+ Booting Derby version The Apache Software Foundation - Apache Derby - 10.4.2.0 - (689064): instance a816c00e-0141-4dae-53e8-00000707d200
+on database directory /home/hadoop/software/hadoop/hive/contrib/TempStatsStore  
+
+Database Class Loader started - derby.database.classpath=''
+
+2013-09-24 01:56:13.414 GMT:
+Shutting down instance a816c00e-0141-4dae-53e8-00000707d200
+----------------------------------------------------------------
+----------------------------------------------------------------
+2013-09-24 01:56:14.336 GMT:
+ Booting Derby version The Apache Software Foundation - Apache Derby - 10.4.2.0 - (689064): instance 08264012-0141-4dae-53e8-00000707d200
+on database directory /home/hadoop/software/hadoop/hive/contrib/TempStatsStore  
+
+Database Class Loader started - derby.database.classpath=''
+
+2013-09-24 01:56:14.847 GMT:
+Shutting down instance 08264012-0141-4dae-53e8-00000707d200
+----------------------------------------------------------------

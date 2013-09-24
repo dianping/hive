@@ -24,10 +24,10 @@ import java.util.List;
 import org.apache.hadoop.hive.ql.exec.Task;
 
 public abstract class AbstractSemanticAnalyzerHook implements
-HiveSemanticAnalyzerHook {
+    HiveSemanticAnalyzerHook {
 
-  public ASTNode preAnalyze(HiveSemanticAnalyzerHookContext context,ASTNode ast)
-  throws SemanticException {
+  public ASTNode preAnalyze(HiveSemanticAnalyzerHookContext context, ASTNode ast)
+      throws SemanticException {
     return ast;
   }
 

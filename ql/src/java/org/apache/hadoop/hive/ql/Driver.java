@@ -414,6 +414,7 @@ public class Driver implements CommandProcessor {
       ctx = new Context(conf);
       ctx.setTryCount(getTryCount());
       ctx.setCmd(command);
+      SessionState.get().setCmd(command);
 
       ParseDriver pd = new ParseDriver();
       ASTNode tree = pd.parse(command, ctx);
