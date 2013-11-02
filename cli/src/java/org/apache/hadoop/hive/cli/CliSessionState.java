@@ -28,6 +28,8 @@ import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.service.HiveClient;
+import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -87,7 +89,33 @@ public class CliSessionState extends SessionState {
    * Connect to Hive Server
    */
   public void connect() throws TTransportException {
+
     transport = new TSocket(host, port);
+    String ServerHost = host;
+
+    boolean useSasl = conf.getBoolVar(HiveConf.ConfVars.HIVESERVER_USE_THRIFT_SASL);
+    if (useSasl) {
+      try {
+        HadoopThriftAuthBridge.Client authBridge =
+            ShimLoader.getHadoopThriftAuthBridge().createClient();
+
+        String tokenSig = conf.get("hive.thriftserver.token.signature");
+        String tokenStrForm = ShimLoader.getHadoopShims().getTokenStrForm(tokenSig);
+
+        if (tokenStrForm != null) {
+          transport = authBridge.createClientTransport(null, ServerHost,
+              "DIGEST", tokenStrForm, transport);
+        } else {
+          String principalConfig = conf.getVar(HiveConf.ConfVars.HIVESERVER_KERBEROS_PRINCIPAL);
+          transport = authBridge.createClientTransport(
+              principalConfig, ServerHost, "KERBEROS", null,
+              transport);
+        }
+      } catch (IOException ioe) {
+        ioe.printStackTrace();
+      }
+    }
+
     TProtocol protocol = new TBinaryProtocol(transport);
     client = new HiveClient(protocol);
     transport.open();
@@ -106,6 +134,7 @@ public class CliSessionState extends SessionState {
     return port;
   }
 
+  @Override
   public void close() {
     try {
       super.close();
