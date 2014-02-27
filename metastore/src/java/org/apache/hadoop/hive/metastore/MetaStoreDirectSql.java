@@ -79,7 +79,7 @@ class MetaStoreDirectSql {
       String dbName, String tblName, List<String> partNames) throws MetaException {
     String list = repeat(",?", partNames.size()).substring(1);
     return getPartitionsViaSqlFilterInternal(dbName, tblName,
-        "and \"PARTITIONS\".\"PART_NAME\" in (" + list + ")" , partNames, new ArrayList<String>());
+        "and PARTITIONS.PART_NAME in (" + list + ")" , partNames, new ArrayList<String>());
   }
 
   /**
@@ -121,10 +121,10 @@ class MetaStoreDirectSql {
     // just adding a PART_ID IN (...) filter that doesn't alter the results to it, probably
     // causing it to not sort the entire table due to not knowing how selective the filter is.
     String queryText =
-        "select \"PARTITIONS\".\"PART_ID\" from \"PARTITIONS\""
-      + "  inner join \"TBLS\" on \"PARTITIONS\".\"TBL_ID\" = \"TBLS\".\"TBL_ID\" "
-      + "  inner join \"DBS\" on \"TBLS\".\"DB_ID\" = \"DBS\".\"DB_ID\" "
-      + join(joinsForFilter, ' ') + " where \"TBLS\".\"TBL_NAME\" = ? and \"DBS\".\"NAME\" = ?"
+        "select PARTITIONS.PART_ID from PARTITIONS"
+      + "  inner join TBLS on PARTITIONS.TBL_ID = TBLS.TBL_ID "
+      + "  inner join DBS on TBLS.DB_ID = DBS.DB_ID "
+      + join(joinsForFilter, ' ') + " where TBLS.TBL_NAME = ? and DBS.NAME = ?"
       + ((sqlFilter == null) ? "" : " " + sqlFilter);
     Object[] params = new Object[paramsForFilter.size() + 2];
     params[0] = tblName;
@@ -157,14 +157,14 @@ class MetaStoreDirectSql {
 
     // Now get most of the other fields.
     queryText =
-      "select \"PARTITIONS\".\"PART_ID\", \"SDS\".\"SD_ID\", \"SDS\".\"CD_ID\", \"SERDES\".\"SERDE_ID\", "
-    + "  \"PARTITIONS\".\"CREATE_TIME\", \"PARTITIONS\".\"LAST_ACCESS_TIME\", \"SDS\".\"INPUT_FORMAT\", "
-    + "  \"SDS\".\"IS_COMPRESSED\", \"SDS\".\"IS_STOREDASSUBDIRECTORIES\", \"SDS\".\"LOCATION\",  \"SDS\".\"NUM_BUCKETS\", "
-    + "  \"SDS\".\"OUTPUT_FORMAT\", \"SERDES\".\"NAME\", \"SERDES\".\"SLIB\" "
-    + "from \"PARTITIONS\""
-    + "  left outer join \"SDS\" on \"PARTITIONS\".\"SD_ID\" = \"SDS\".\"SD_ID\" "
-    + "  left outer join \"SERDES\" on \"SDS\".\"SERDE_ID\" = \"SERDES\".\"SERDE_ID\" "
-    + "where \"PART_ID\" in (" + partIds + ") order by \"PART_NAME\" asc";
+      "select PARTITIONS.PART_ID, SDS.SD_ID, SDS.CD_ID, SERDES.SERDE_ID, "
+    + "  PARTITIONS.CREATE_TIME, PARTITIONS.LAST_ACCESS_TIME, SDS.INPUT_FORMAT, "
+    + "  SDS.IS_COMPRESSED, SDS.IS_STOREDASSUBDIRECTORIES, SDS.LOCATION,  SDS.NUM_BUCKETS, "
+    + "  SDS.OUTPUT_FORMAT, SERDES.NAME, SERDES.SLIB "
+    + "from PARTITIONS"
+    + "  left outer join SDS on PARTITIONS.SD_ID = SDS.SD_ID "
+    + "  left outer join SERDES on SDS.SERDE_ID = SERDES.SERDE_ID "
+    + "where PART_ID in (" + partIds + ") order by PART_NAME asc";
     start = doTrace ? System.nanoTime() : 0;
     query = pm.newQuery("javax.jdo.query.SQL", queryText);
     @SuppressWarnings("unchecked")
@@ -261,23 +261,23 @@ class MetaStoreDirectSql {
         colIds = trimCommaList(colsSb);
 
     // Now get all the one-to-many things. Start with partitions.
-    queryText = "select \"PART_ID\", \"PARAM_KEY\", \"PARAM_VALUE\" from \"PARTITION_PARAMS\" where \"PART_ID\" in ("
-        + partIds + ") and \"PARAM_KEY\" is not null order by \"PART_ID\" asc";
+    queryText = "select PART_ID, PARAM_KEY, PARAM_VALUE from PARTITION_PARAMS where PART_ID in ("
+        + partIds + ") and PARAM_KEY is not null order by PART_ID asc";
     loopJoinOrderedResult(partitions, queryText, 0, new ApplyFunc<Partition>() {
       public void apply(Partition t, Object[] fields) {
         t.putToParameters((String)fields[1], (String)fields[2]);
       }});
 
-    queryText = "select \"PART_ID\", \"PART_KEY_VAL\" from \"PARTITION_KEY_VALS\" where \"PART_ID\" in ("
-        + partIds + ") and \"INTEGER_IDX\" >= 0 order by \"PART_ID\" asc, \"INTEGER_IDX\" asc";
+    queryText = "select PART_ID, PART_KEY_VAL from PARTITION_KEY_VALS where PART_ID in ("
+        + partIds + ") and INTEGER_IDX >= 0 order by PART_ID asc, INTEGER_IDX asc";
     loopJoinOrderedResult(partitions, queryText, 0, new ApplyFunc<Partition>() {
       public void apply(Partition t, Object[] fields) {
         t.addToValues((String)fields[1]);
       }});
 
     // Get all the stuff for SD. Don't do empty-list check - we expect partitions do have SDs.
-    queryText = "select \"SD_ID\", \"PARAM_KEY\", \"PARAM_VALUE\" from \"SD_PARAMS\" where \"SD_ID\" in ("
-        + sdIds + ") and \"PARAM_KEY\" is not null order by \"SD_ID\" asc";
+    queryText = "select SD_ID, PARAM_KEY, PARAM_VALUE from SD_PARAMS where SD_ID in ("
+        + sdIds + ") and PARAM_KEY is not null order by SD_ID asc";
     loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
       public void apply(StorageDescriptor t, Object[] fields) {
         t.putToParameters((String)fields[1], (String)fields[2]);
@@ -285,24 +285,24 @@ class MetaStoreDirectSql {
 
     // Note that SORT_COLS has "ORDER" column, which is not SQL92-legal. We have two choices
     // here - drop SQL92, or get '*' and be broken on certain schema changes. We do the latter.
-    queryText = "select \"SD_ID\", \"COLUMN_NAME\", \"SORT_COLS\".* from \"SORT_COLS\" where \"SD_ID\" in ("
-        + sdIds + ") and \"INTEGER_IDX\" >= 0 order by \"SD_ID\" asc, \"INTEGER_IDX\" asc";
+    queryText = "select SD_ID, COLUMN_NAME, SORT_COLS.* from SORT_COLS where SD_ID in ("
+        + sdIds + ") and INTEGER_IDX >= 0 order by SD_ID asc, INTEGER_IDX asc";
     loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
       public void apply(StorageDescriptor t, Object[] fields) {
         if (fields[4] == null) return;
         t.addToSortCols(new Order((String)fields[1], (Integer)fields[4]));
       }});
 
-    queryText = "select \"SD_ID\", \"BUCKET_COL_NAME\" from \"BUCKETING_COLS\" where \"SD_ID\" in ("
-        + sdIds + ") and \"INTEGER_IDX\" >= 0 order by \"SD_ID\" asc, \"INTEGER_IDX\" asc";
+    queryText = "select SD_ID, BUCKET_COL_NAME from BUCKETING_COLS where SD_ID in ("
+        + sdIds + ") and INTEGER_IDX >= 0 order by SD_ID asc, INTEGER_IDX asc";
     loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
       public void apply(StorageDescriptor t, Object[] fields) {
         t.addToBucketCols((String)fields[1]);
       }});
 
     // Skewed columns stuff.
-    queryText = "select \"SD_ID\", \"SKEWED_COL_NAME\" from \"SKEWED_COL_NAMES\" where \"SD_ID\" in ("
-        + sdIds + ") and \"INTEGER_IDX\" >= 0 order by \"SD_ID\" asc, \"INTEGER_IDX\" asc";
+    queryText = "select SD_ID, SKEWED_COL_NAME from SKEWED_COL_NAMES where SD_ID in ("
+        + sdIds + ") and INTEGER_IDX >= 0 order by SD_ID asc, INTEGER_IDX asc";
     boolean hasSkewedColumns =
       loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
         public void apply(StorageDescriptor t, Object[] fields) {
@@ -314,16 +314,16 @@ class MetaStoreDirectSql {
     if (hasSkewedColumns) {
       // We are skipping the SKEWED_STRING_LIST table here, as it seems to be totally useless.
       queryText =
-            "select \"SKEWED_VALUES\".\"SD_ID_OID\", \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_ID\", "
-          + "  \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_VALUE\" "
-          + "from \"SKEWED_VALUES\" "
-          + "  left outer join \"SKEWED_STRING_LIST_VALUES\" on "
-          + "    \"SKEWED_VALUES\".\"STRING_LIST_ID_EID\" = \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_ID\" "
-          + "where \"SKEWED_VALUES\".\"SD_ID_OID\" in (" + sdIds + ") "
-          + "  and \"SKEWED_VALUES\".\"STRING_LIST_ID_EID\" is not null "
-          + "  and \"SKEWED_VALUES\".\"INTEGER_IDX\" >= 0 "
-          + "order by \"SKEWED_VALUES\".\"SD_ID_OID\" asc, \"SKEWED_VALUES\".\"INTEGER_IDX\" asc, "
-          + "  \"SKEWED_STRING_LIST_VALUES\".\"INTEGER_IDX\" asc";
+            "select SKEWED_VALUES.SD_ID_OID, SKEWED_STRING_LIST_VALUES.STRING_LIST_ID, "
+          + "  SKEWED_STRING_LIST_VALUES.STRING_LIST_VALUE "
+          + "from SKEWED_VALUES "
+          + "  left outer join SKEWED_STRING_LIST_VALUES on "
+          + "    SKEWED_VALUES.STRING_LIST_ID_EID = SKEWED_STRING_LIST_VALUES.STRING_LIST_ID "
+          + "where SKEWED_VALUES.SD_ID_OID in (" + sdIds + ") "
+          + "  and SKEWED_VALUES.STRING_LIST_ID_EID is not null "
+          + "  and SKEWED_VALUES.INTEGER_IDX >= 0 "
+          + "order by SKEWED_VALUES.SD_ID_OID asc, SKEWED_VALUES.INTEGER_IDX asc, "
+          + "  SKEWED_STRING_LIST_VALUES.INTEGER_IDX asc";
       loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
         private Long currentListId;
         private List<String> currentList;
@@ -348,15 +348,15 @@ class MetaStoreDirectSql {
 
       // We are skipping the SKEWED_STRING_LIST table here, as it seems to be totally useless.
       queryText =
-            "select \"SKEWED_COL_VALUE_LOC_MAP\".\"SD_ID\", \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_ID\","
-          + "  \"SKEWED_COL_VALUE_LOC_MAP\".\"LOCATION\", \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_VALUE\" "
-          + "from \"SKEWED_COL_VALUE_LOC_MAP\""
-          + "  left outer join \"SKEWED_STRING_LIST_VALUES\" on \"SKEWED_COL_VALUE_LOC_MAP\"."
-          + "\"STRING_LIST_ID_KID\" = \"SKEWED_STRING_LIST_VALUES\".\"STRING_LIST_ID\" "
-          + "where \"SKEWED_COL_VALUE_LOC_MAP\".\"SD_ID\" in (" + sdIds + ")"
-          + "  and \"SKEWED_COL_VALUE_LOC_MAP\".\"STRING_LIST_ID_KID\" is not null "
-          + "order by \"SKEWED_COL_VALUE_LOC_MAP\".\"SD_ID\" asc,"
-          + "  \"SKEWED_STRING_LIST_VALUES\".\"INTEGER_IDX\" asc";
+            "select SKEWED_COL_VALUE_LOC_MAP.SD_ID, SKEWED_STRING_LIST_VALUES.STRING_LIST_ID,"
+          + "  SKEWED_COL_VALUE_LOC_MAP.LOCATION, SKEWED_STRING_LIST_VALUES.STRING_LIST_VALUE "
+          + "from SKEWED_COL_VALUE_LOC_MAP"
+          + "  left outer join SKEWED_STRING_LIST_VALUES on SKEWED_COL_VALUE_LOC_MAP."
+          + "STRING_LIST_ID_KID = SKEWED_STRING_LIST_VALUES.STRING_LIST_ID "
+          + "where SKEWED_COL_VALUE_LOC_MAP.SD_ID in (" + sdIds + ")"
+          + "  and SKEWED_COL_VALUE_LOC_MAP.STRING_LIST_ID_KID is not null "
+          + "order by SKEWED_COL_VALUE_LOC_MAP.SD_ID asc,"
+          + "  SKEWED_STRING_LIST_VALUES.INTEGER_IDX asc";
       loopJoinOrderedResult(sds, queryText, 0, new ApplyFunc<StorageDescriptor>() {
         private Long currentListId;
         private SkewedValueList currentList;
@@ -384,8 +384,8 @@ class MetaStoreDirectSql {
     // Get FieldSchema stuff if any.
     if (!colss.isEmpty()) {
       // We are skipping the CDS table here, as it seems to be totally useless.
-      queryText = "select \"CD_ID\", \"COMMENT\", \"COLUMN_NAME\", \"TYPE_NAME\" from \"COLUMNS_V2\" where \"CD_ID\" in ("
-          + colIds + ") and \"INTEGER_IDX\" >= 0 order by \"CD_ID\" asc, \"INTEGER_IDX\" asc";
+      queryText = "select CD_ID, COMMENT, COLUMN_NAME, TYPE_NAME from COLUMNS_V2 where CD_ID in ("
+          + colIds + ") and INTEGER_IDX >= 0 order by CD_ID asc, INTEGER_IDX asc";
       loopJoinOrderedResult(colss, queryText, 0, new ApplyFunc<List<FieldSchema>>() {
         public void apply(List<FieldSchema> t, Object[] fields) {
           t.add(new FieldSchema((String)fields[2], (String)fields[3], (String)fields[1]));
@@ -393,8 +393,8 @@ class MetaStoreDirectSql {
     }
 
     // Finally, get all the stuff for serdes - just the params.
-    queryText = "select \"SERDE_ID\", \"PARAM_KEY\", \"PARAM_VALUE\" from \"SERDE_PARAMS\" where \"SERDE_ID\" in ("
-        + serdeIds + ") and \"PARAM_KEY\" is not null order by \"SERDE_ID\" asc";
+    queryText = "select SERDE_ID, PARAM_KEY, PARAM_VALUE from SERDE_PARAMS where SERDE_ID in ("
+        + serdeIds + ") and PARAM_KEY is not null order by SERDE_ID asc";
     loopJoinOrderedResult(serdes, queryText, 0, new ApplyFunc<SerDeInfo>() {
       public void apply(SerDeInfo t, Object[] fields) {
         t.putToParameters((String)fields[1], (String)fields[2]);
@@ -549,12 +549,12 @@ class MetaStoreDirectSql {
         }
       }
       if (joins.get(partColIndex) == null) {
-        joins.set(partColIndex, "inner join \"PARTITION_KEY_VALS\" as \"FILTER" + partColIndex
-            + "\" on \"FILTER"  + partColIndex + "\".\"PART_ID\" = \"PARTITIONS\".\"PART_ID\" and \"FILTER"
-            + partColIndex + "\".\"INTEGER_IDX\" = " + partColIndex);
+        joins.set(partColIndex, "inner join PARTITION_KEY_VALS as FILTER" + partColIndex
+            + " on FILTER"  + partColIndex + ".PART_ID = PARTITIONS.PART_ID and FILTER"
+            + partColIndex + ".INTEGER_IDX = " + partColIndex);
       }
 
-      String tableValue = "\"FILTER" + partColIndex + "\".\"PART_KEY_VAL\"";
+      String tableValue = "FILTER" + partColIndex + ".PART_KEY_VAL";
       // TODO: need casts here if #doesOperatorSupportIntegral is amended to include lt/gt/etc.
       filterBuffer.append(node.isReverseOrder
           ? "(? " + node.operator.getSqlOp() + " " + tableValue + ")"
