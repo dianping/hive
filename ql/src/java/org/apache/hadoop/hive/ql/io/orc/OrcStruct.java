@@ -32,7 +32,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.SettableListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.SettableMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
@@ -42,19 +41,19 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 import org.apache.hadoop.io.Writable;
 
-final class OrcStruct implements Writable {
+final public class OrcStruct implements Writable {
 
   private Object[] fields;
 
-  OrcStruct(int children) {
+  public OrcStruct(int children) {
     fields = new Object[children];
   }
 
-  Object getFieldValue(int fieldIndex) {
+  public Object getFieldValue(int fieldIndex) {
     return fields[fieldIndex];
   }
 
-  void setFieldValue(int fieldIndex, Object value) {
+  public void setFieldValue(int fieldIndex, Object value) {
     fields[fieldIndex] = value;
   }
 
@@ -203,7 +202,15 @@ final class OrcStruct implements Writable {
 
     @Override
     public Object getStructFieldData(Object object, StructField field) {
-      return ((OrcStruct) object).fields[((Field) field).offset];
+      if (object == null) {
+        return null;
+      }
+      int offset = ((Field) field).offset;
+      OrcStruct struct = (OrcStruct) object;
+      if (offset >= struct.fields.length) {
+        return null;
+      }
+      return struct.fields[offset];
     }
 
     @Override
@@ -451,7 +458,7 @@ final class OrcStruct implements Writable {
     }
   }
 
-  static ObjectInspector createObjectInspector(TypeInfo info) {
+  static public ObjectInspector createObjectInspector(TypeInfo info) {
     switch (info.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveTypeInfo) info).getPrimitiveCategory()) {
@@ -495,7 +502,7 @@ final class OrcStruct implements Writable {
     }
   }
 
-  static ObjectInspector createObjectInspector(int columnId,
+  static public ObjectInspector createObjectInspector(int columnId,
                                                List<OrcProto.Type> types){
     OrcProto.Type type = types.get(columnId);
     switch (type.getKind()) {

@@ -29,13 +29,13 @@
     </parent>
 
     <properties>
-	<hive.dp.version>0.11.0-dp-3</hive.dp.version>
+	<hive.dp.version>0.11.0-dp-4</hive.dp.version>
     </properties>
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.apache.hcatalog</groupId>
     <artifactId>hcatalog-core</artifactId>
-    <version>0.11.0-dp-3</version>
+    <version>0.11.0-dp-4</version>
     <packaging>jar</packaging>
     <name>hcatalog-core</name>
     <url>http://maven.apache.org</url>

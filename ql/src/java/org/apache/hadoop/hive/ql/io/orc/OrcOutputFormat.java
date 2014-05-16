@@ -17,6 +17,10 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Properties;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -32,10 +36,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Progressable;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Properties;
 
 /**
  * A Hive OutputFormat for ORC files.
@@ -113,7 +113,9 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   public RecordWriter<NullWritable, OrcSerdeRow>
       getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
                       Progressable reporter) throws IOException {
-    return new OrcRecordWriter(fileSystem,  new Path(name), conf,
+    Path outputPath = getWorkOutputPath(conf);
+    Path file = new Path(outputPath, name);
+    return new OrcRecordWriter(fileSystem, file, conf,
       OrcFile.DEFAULT_STRIPE_SIZE, OrcFile.DEFAULT_COMPRESSION,
       OrcFile.DEFAULT_COMPRESSION_BLOCK_SIZE, OrcFile.DEFAULT_ROW_INDEX_STRIDE);
   }
