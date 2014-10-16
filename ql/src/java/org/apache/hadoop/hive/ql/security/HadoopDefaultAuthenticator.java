@@ -21,12 +21,16 @@ package org.apache.hadoop.hive.ql.security;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.security.UserGroupInformation;
 
 public class HadoopDefaultAuthenticator implements HiveAuthenticationProvider {
+
+  private static final Log LOG = LogFactory.getLog(HadoopDefaultAuthenticator.class);
 
   private String userName;
   private List<String> groupNames;
@@ -35,11 +39,13 @@ public class HadoopDefaultAuthenticator implements HiveAuthenticationProvider {
 
   @Override
   public List<String> getGroupNames() {
+    LOG.info("GroupNames: " + groupNames);
     return groupNames;
   }
 
   @Override
   public String getUserName() {
+    LOG.info("userName: " + userName);
     return userName;
   }
 
