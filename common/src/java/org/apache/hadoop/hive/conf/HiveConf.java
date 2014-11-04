@@ -897,7 +897,8 @@ public class HiveConf extends Configuration {
   private static synchronized InputStream getConfVarInputStream() {
     if (confVarByteArray == null) {
       try {
-        Configuration conf = new Configuration();
+        // Create a Hadoop configuration without inheriting default settings.
+        Configuration conf = new Configuration(false);
 
         applyDefaultNonNullConfVars(conf);
 
@@ -1155,10 +1156,6 @@ public class HiveConf extends Configuration {
       if (var.defaultVal == null) {
         // Don't override ConfVars with null values
         continue;
-      }
-      if (conf.get(var.varname) != null) {
-        l4j.debug("Overriding Hadoop conf property " + var.varname + "='" + conf.get(var.varname)
-                  + "' with Hive default value '" + var.defaultVal +"'");
       }
       conf.set(var.varname, var.defaultVal);
     }
