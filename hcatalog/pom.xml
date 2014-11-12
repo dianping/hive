@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
     Licensed to the Apache Software Foundation (ASF) under one
     or more contributor license agreements.  See the NOTICE file
@@ -31,7 +32,7 @@
       <hbase.version>0.94.5</hbase.version>
       <hcatalog.version>${project.version}</hcatalog.version>
       <hive.version>${project.version}</hive.version>
-      <hive.dp.version>0.11.0-dp-4</hive.dp.version>
+      <hive.dp.version>0.11.0-dp-5</hive.dp.version>
       <jackson.version>1.9.2</jackson.version>
       <jersey.version>1.14</jersey.version>
       <jetty.webhcat.version>7.6.0.v20120127</jetty.webhcat.version>
