@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.exec;
 import java.util.ArrayList;
 import java.util.Properties;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -65,7 +66,12 @@ public class ListSinkOperator extends Operator<ListSinkDesc> {
 
     // this is the default serialization format
     if (serde instanceof DelimitedJSONSerDe) {
-      serdeProp.put(serdeConstants.SERIALIZATION_FORMAT, "" + Utilities.tabCode);
+      String serializationFormat = getConfiguration().get(HiveConf.ConfVars.HIVE_LISTSINK_SERIALIZATION_FORMAT.varname);
+      if (!StringUtils.isEmpty(serializationFormat)) {
+          serdeProp.put(serdeConstants.SERIALIZATION_FORMAT, "" + Integer.parseInt(serializationFormat));
+      } else {
+          serdeProp.put(serdeConstants.SERIALIZATION_FORMAT, "" + Utilities.tabCode);
+      }
       serdeProp.put(serdeConstants.SERIALIZATION_NULL_FORMAT, getConf().getSerializationNullFormat());
     }
     serde.initialize(conf, serdeProp);
@@ -86,6 +92,7 @@ public class ListSinkOperator extends Operator<ListSinkDesc> {
     return numRows;
   }
 
+  @Override
   public void processOp(Object row, int tag) throws HiveException {
     try {
       res.add(mSerde.serialize(row, outputObjInspector).toString());
@@ -95,6 +102,7 @@ public class ListSinkOperator extends Operator<ListSinkDesc> {
     }
   }
 
+  @Override
   public OperatorType getType() {
     return OperatorType.FORWARD;
   }

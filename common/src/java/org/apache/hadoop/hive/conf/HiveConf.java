@@ -767,6 +767,8 @@ public class HiveConf extends Configuration {
     HIVESERVER_KERBEROS_KEYTAB_FILE("hive.hiveserver.kerberos.keytab.file", ""),
     HIVESERVER_KERBEROS_PRINCIPAL("hive.hiveserver.kerberos.principal", ""),
     HIVESERVER_USE_THRIFT_SASL("hive.hiveserver.sasl.enabled", false),
+
+    HIVE_LISTSINK_SERIALIZATION_FORMAT("hive.listsink.serialization.format", ""),
     ;
 
     public final String varname;

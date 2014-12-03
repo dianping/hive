@@ -32,12 +32,12 @@ import java.util.Map;
 import java.util.Set;
 
 import jline.ArgumentCompletor;
+import jline.ArgumentCompletor.AbstractArgumentDelimiter;
+import jline.ArgumentCompletor.ArgumentDelimiter;
 import jline.Completor;
 import jline.ConsoleReader;
 import jline.History;
 import jline.SimpleCompletor;
-import jline.ArgumentCompletor.AbstractArgumentDelimiter;
-import jline.ArgumentCompletor.ArgumentDelimiter;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -333,9 +333,14 @@ public class CliDriver {
           && fieldSchemas != null) {
       // Print the column names
       boolean first_col = true;
+      String serializationFormat = HiveConf.getVar(conf, HiveConf.ConfVars.HIVE_LISTSINK_SERIALIZATION_FORMAT);
       for (FieldSchema fs : fieldSchemas) {
         if (!first_col) {
-          out.print('\t');
+          if (!StringUtils.isEmpty(serializationFormat)) {
+            out.print((char)Integer.parseInt(serializationFormat));
+          } else {
+            out.print('\t');
+          }
         }
         out.print(fs.getName());
         first_col = false;
