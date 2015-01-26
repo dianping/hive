@@ -279,9 +279,10 @@ public class MapJoinOperator extends AbstractMapJoinOperator<MapJoinDesc> implem
         }
       }
 
-    } catch (SerDeException e) {
-      e.printStackTrace();
-      throw new HiveException(e);
+    } catch (Exception e) {
+      String msg = "Unxpected exception: " + e.getMessage();
+      LOG.error(msg, e);
+      throw new HiveException(msg, e);
     }
   }
 
