@@ -1399,7 +1399,8 @@ public class Hive {
             isSrcLocal);
       } else {
         newFiles = new ArrayList<Path>();
-        FileSystem fs = tbl.getDataLocation().getFileSystem(conf);
+//        FileSystem fs = tbl.getDataLocation().getFileSystem(conf);
+        FileSystem fs = FileSystem.get(conf);
         Hive.copyFiles(conf, loadPath, newPartPath, fs, isSrcLocal, isAcid, newFiles);
       }
 
@@ -1641,7 +1642,8 @@ private void constructOneLBLocationMap(FileStatus fSta,
     } else {
       FileSystem fs;
       try {
-        fs = tbl.getDataLocation().getFileSystem(sessionConf);
+//        fs = tbl.getDataLocation().getFileSystem(sessionConf);
+        fs = FileSystem.get(conf);
         copyFiles(sessionConf, loadPath, tbl.getPath(), fs, isSrcLocal, isAcid, newFiles);
       } catch (IOException e) {
         throw new HiveException("addFiles: filesystem error in check phase", e);

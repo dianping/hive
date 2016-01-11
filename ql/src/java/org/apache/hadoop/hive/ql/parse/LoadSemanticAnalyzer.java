@@ -161,7 +161,8 @@ public class LoadSemanticAnalyzer extends BaseSemanticAnalyzer {
           + toURI.toString() + " is not valid. "
           + "Please check that values for params \"default.fs.name\" and "
           + "\"hive.metastore.warehouse.dir\" do not conflict.";
-      throw new SemanticException(ErrorMsg.ILLEGAL_PATH.getMsg(ast, reason));
+      console.printError("WARNING: " + reason);
+//      throw new SemanticException(ErrorMsg.ILLEGAL_PATH.getMsg(ast, reason));
     }
   }
 
