@@ -115,8 +115,15 @@ public abstract class HCatBaseInputFormat
       throw new IOException(e);
     }
 
-    List<InputSplit> splits = new ArrayList<InputSplit>();
-    List<PartInfo> partitionInfoList = inputJobInfo.getPartitions();
+    return getSplits(jobContext, inputJobInfo);
+  }
+  
+  protected List<InputSplit> getSplits(JobContext jobContext, InputJobInfo inputJobInfo)
+    throws IOException, InterruptedException {
+	Configuration conf = jobContext.getConfiguration();
+	
+	List<InputSplit> splits = new ArrayList<InputSplit>();
+	List<PartInfo> partitionInfoList = inputJobInfo.getPartitions();
     if (partitionInfoList == null) {
       //No partitions match the specified partition filter
       return splits;
@@ -205,7 +212,7 @@ public abstract class HCatBaseInputFormat
   /**
    * gets values for fields requested by output schema which will not be in the data
    */
-  private static Map<String, Object> getColValsNotInDataColumns(HCatSchema outputSchema,
+  protected static Map<String, Object> getColValsNotInDataColumns(HCatSchema outputSchema,
                                   PartInfo partInfo) throws HCatException {
     HCatSchema dataSchema = partInfo.getPartitionSchema();
     Map<String, Object> vals = new HashMap<String, Object>();

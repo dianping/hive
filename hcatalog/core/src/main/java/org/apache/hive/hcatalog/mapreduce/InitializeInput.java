@@ -88,6 +88,17 @@ class InitializeInput {
       HCatUtil.serialize(getInputJobInfo(conf, inputJobInfo, null)));
   }
 
+  public static void setInput(Job job, ArrayList<InputJobInfo> inputJobInfoList) throws Exception {
+	  setInput(job.getConfiguration(), inputJobInfoList);
+  }
+  
+  public static void setInput(Configuration conf, ArrayList<InputJobInfo> inputJobInfoList) throws Exception {
+    for (InputJobInfo inputJobInfo : inputJobInfoList) {
+      getInputJobInfo(conf, inputJobInfo, null);
+    }
+    conf.set(HCatConstants.HCAT_KEY_MULTI_INPUT_JOBS_INFO, HCatUtil.serialize(inputJobInfoList));
+  }
+  
   /**
    * Returns the given InputJobInfo after populating with data queried from the metadata service.
    */
