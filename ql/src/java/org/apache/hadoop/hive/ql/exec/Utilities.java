@@ -34,6 +34,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
@@ -189,9 +191,11 @@ import org.apache.hadoop.util.Shell;
 import org.apache.hive.common.util.ReflectionUtil;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
+import com.esotericsoftware.kryo.util.ObjectMap;
 import com.esotericsoftware.shaded.org.objenesis.strategy.StdInstantiatorStrategy;
 
 /**
@@ -1093,6 +1097,7 @@ public final class Utilities {
       kryo.register(java.sql.Date.class, new SqlDateSerializer());
       kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
       kryo.register(Path.class, new PathSerializer());
+      kryo.register(SimpleDateFormat.class, new JavaSerializerKyro303());
       kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
       removeField(kryo, Operator.class, "colExprMap");
       removeField(kryo, ColumnInfo.class, "objectInspector");
@@ -1137,6 +1142,7 @@ public final class Utilities {
       kryo.register(java.sql.Date.class, new SqlDateSerializer());
       kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
       kryo.register(Path.class, new PathSerializer());
+      kryo.register(SimpleDateFormat.class, new JavaSerializerKyro303());
       kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
       return kryo;
     };
@@ -3878,4 +3884,35 @@ public final class Utilities {
       HiveConf.setVar(conf, HiveConf.ConfVars.HIVE_SERVER2_SSL_KEYSTORE_PASSWORD, "");
     }
   }
+
+  private static class JavaSerializerKyro303 extends com.esotericsoftware.kryo.Serializer {
+	  public void write(Kryo kryo, Output output, Object object) {
+		  try {
+			  ObjectMap graphContext = kryo.getGraphContext();
+			  ObjectOutputStream objectStream = (ObjectOutputStream) graphContext.get(this);
+			  if (objectStream == null) {
+				  objectStream = new ObjectOutputStream(output);
+				  graphContext.put(this, objectStream);
+			  }
+			  objectStream.writeObject(object);
+			  objectStream.flush();
+		  } catch (Exception ex) {
+			  throw new KryoException("Error during Java serialization.", ex);
+		  }
+	  }
+
+	  public Object read(Kryo kryo, Input input, Class type) {
+		  try {
+			  ObjectMap graphContext = kryo.getGraphContext();
+			  ObjectInputStream objectStream = (ObjectInputStream) graphContext.get(this);
+			  if (objectStream == null) {
+				  objectStream = new ObjectInputStream(input);
+				  graphContext.put(this, objectStream);
+			  }
+			  return objectStream.readObject();
+		  } catch (Exception ex) {
+			  throw new KryoException("Error during Java deserialization.", ex);
+		  }
+	  }
+	}
 }
