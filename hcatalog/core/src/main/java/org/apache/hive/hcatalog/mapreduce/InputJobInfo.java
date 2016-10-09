@@ -59,7 +59,7 @@ public class InputJobInfo implements Serializable {
   private String filter;
 
   /** The list of partitions matching the filter. */
-  transient private List<PartInfo> partitions;
+  private List<PartInfo> partitions;
 
   /** implementation specific job properties */
   private Properties properties;
@@ -155,11 +155,11 @@ public class InputJobInfo implements Serializable {
     return properties;
   }
 
-//  /**
-//   * Serialize this object, compressing the partitions which can exceed the
-//   * allowed jobConf size.
-//   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
-//   */
+  /**
+   * Serialize this object, compressing the partitions which can exceed the
+   * allowed jobConf size.
+   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
+   */
 //  private void writeObject(ObjectOutputStream oos)
 //    throws IOException {
 //    oos.defaultWriteObject();
@@ -169,12 +169,12 @@ public class InputJobInfo implements Serializable {
 //    partInfoWriter.writeObject(partitions);
 //    partInfoWriter.close();
 //  }
-//
-//  /**
-//   * Deserialize this object, decompressing the partitions which can exceed the
-//   * allowed jobConf size.
-//   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
-//   */
+
+  /**
+   * Deserialize this object, decompressing the partitions which can exceed the
+   * allowed jobConf size.
+   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
+   */
 //  @SuppressWarnings("unchecked")
 //  private void readObject(ObjectInputStream ois)
 //    throws IOException, ClassNotFoundException {
