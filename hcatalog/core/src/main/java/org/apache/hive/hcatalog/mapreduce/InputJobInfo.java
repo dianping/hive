@@ -155,37 +155,37 @@ public class InputJobInfo implements Serializable {
     return properties;
   }
 
-//  /**
-//   * Serialize this object, compressing the partitions which can exceed the
-//   * allowed jobConf size.
-//   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
-//   */
-//  private void writeObject(ObjectOutputStream oos)
-//    throws IOException {
-//    oos.defaultWriteObject();
-//    Deflater def = new Deflater(Deflater.BEST_COMPRESSION);
-//    ObjectOutputStream partInfoWriter =
-//      new ObjectOutputStream(new DeflaterOutputStream(oos, def));
-//    partInfoWriter.writeObject(partitions);
-//    partInfoWriter.close();
-//  }
-//
-//  /**
-//   * Deserialize this object, decompressing the partitions which can exceed the
-//   * allowed jobConf size.
-//   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
-//   */
-//  @SuppressWarnings("unchecked")
-//  private void readObject(ObjectInputStream ois)
-//    throws IOException, ClassNotFoundException {
-//    ois.defaultReadObject();
-//    ObjectInputStream partInfoReader =
-//      new ObjectInputStream(new InflaterInputStream(ois));
-//    partitions = (List<PartInfo>)partInfoReader.readObject();
-//    for (PartInfo partInfo : partitions) {
-//      if (partInfo.getTableInfo() == null) {
-//        partInfo.setTableInfo(this.tableInfo);
-//      }
-//    }
-//  }
+  /**
+   * Serialize this object, compressing the partitions which can exceed the
+   * allowed jobConf size.
+   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
+   */
+  private void writeObject(ObjectOutputStream oos)
+    throws IOException {
+    oos.defaultWriteObject();
+    Deflater def = new Deflater(Deflater.BEST_COMPRESSION);
+    ObjectOutputStream partInfoWriter =
+      new ObjectOutputStream(new DeflaterOutputStream(oos, def));
+    partInfoWriter.writeObject(partitions);
+    partInfoWriter.close();
+  }
+
+  /**
+   * Deserialize this object, decompressing the partitions which can exceed the
+   * allowed jobConf size.
+   * @see <a href="https://issues.apache.org/jira/browse/HCATALOG-453">HCATALOG-453</a>
+   */
+  @SuppressWarnings("unchecked")
+  private void readObject(ObjectInputStream ois)
+    throws IOException, ClassNotFoundException {
+    ois.defaultReadObject();
+    ObjectInputStream partInfoReader =
+      new ObjectInputStream(new InflaterInputStream(ois));
+    partitions = (List<PartInfo>)partInfoReader.readObject();
+    for (PartInfo partInfo : partitions) {
+      if (partInfo.getTableInfo() == null) {
+        partInfo.setTableInfo(this.tableInfo);
+      }
+    }
+  }
 }
