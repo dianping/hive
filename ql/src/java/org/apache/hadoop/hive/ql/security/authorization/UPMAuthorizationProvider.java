@@ -40,28 +40,28 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
 
   @Override
   public void authorize(Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
-    LOG.info(String.format("UPM authorize user %s, just skip", authenticator.getUserName()));
+    LOG.debug(String.format("UPM authorize user %s, just skip", authenticator.getUserName()));
   }
 
   @Override
   public void authorize(Database db, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
-    LOG.info(String.format("UPM authorize user %s database %s, just skip", authenticator.getUserName(), db.getName()));
+    LOG.debug(String.format("UPM authorize user %s database %s, just skip", authenticator.getUserName(), db.getName()));
   }
 
   @Override
   public void authorize(Table table, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
-    LOG.info(String.format("UPM authorize user %s database %s table %s without columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
+    LOG.debug(String.format("UPM authorize user %s database %s table %s without columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
     authorize(table, null, null, readRequiredPriv, writeRequiredPriv);
   }
 
   @Override
   public void authorize(Partition part, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
-    LOG.info(String.format("UPM authorize user %s table %s partition %s, just skip", authenticator.getUserName(), part.getTable(), part.getName()));
+    LOG.debug(String.format("UPM authorize user %s table %s partition %s, just skip", authenticator.getUserName(), part.getTable(), part.getName()));
   }
 
   @Override
   public void authorize(Table table, Partition part, List<String> columns, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
-    LOG.info(String.format("UPM authorize user %s database %s table %s with columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
+    LOG.debug(String.format("UPM authorize user %s database %s table %s with columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
     // Only check authorization of inputs for read privilege
     for (Privilege privilege : readRequiredPriv) {
       // Found privileges need to authorize
@@ -73,19 +73,42 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
   }
 
   private static class UPMAuthorizeRequest {
+    static class UPMAuthorizeRequestTable {
+      final String db;
+      final String table;
+      final List<String> columns;
+
+      UPMAuthorizeRequestTable(String db, String table, List<String> columns) {
+        this.db = db;
+        this.table = table;
+        this.columns = columns;
+      }
+
+      @JsonProperty("db")
+      public String getDb() {
+        return db;
+      }
+
+      @JsonProperty("table")
+      public String getTable() {
+        return table;
+      }
+
+      @JsonProperty("columns")
+      public List<String> getColumns() {
+        return columns;
+      }
+    }
+
     final String app = "hive";
     final String appKey;
     final String user;
-    final String db;
-    final String table;
-    final List<String> columns;
+    final List<UPMAuthorizeRequestTable> tables;
 
     UPMAuthorizeRequest(String appKey, String user, String db, String table, List<String> columns) {
       this.appKey = appKey;
       this.user = user;
-      this.db = db;
-      this.table = table;
-      this.columns = columns;
+      this.tables = Lists.newArrayList(new UPMAuthorizeRequestTable(db, table, columns));
     }
 
     @JsonProperty("app")
@@ -103,19 +126,9 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
       return user;
     }
 
-    @JsonProperty("db")
-    public String getDb() {
-      return db;
-    }
-
-    @JsonProperty("table")
-    public String getTable() {
-      return table;
-    }
-
-    @JsonProperty("columns")
-    public List<String> getColumns() {
-      return columns;
+    @JsonProperty("tables")
+    public List<UPMAuthorizeRequestTable> getTables() {
+      return tables;
     }
   }
 
@@ -136,14 +149,14 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     UPMAuthorizeRequest request = new UPMAuthorizeRequest(appKey, "sh_" + user, db, table, columns);
     ObjectMapper mapper = new ObjectMapper();
     mapper.configure(UNWRAP_ROOT_VALUE, true);
+    String responseString = "";
     try {
-      String requestString = mapper.writeValueAsString(request);
-      String responseString = postUPMService(requestString);
+      responseString = postUPMService(mapper.writeValueAsString(request));
       UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
       authorizeSuccess = response.success;
     } catch (Exception e) {
       // Any exceptions meaning authorize failed, except upm post request related exceptions
-      LOG.warn("UPMAuthorize failed " + e, e);
+      LOG.warn("UPMAuthorize failed, response " + responseString + ", exception " + e, e);
       authorizeSuccess = false;
     }
 
