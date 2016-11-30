@@ -116,7 +116,7 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
       return app;
     }
 
-    @JsonProperty("appKey")
+    @JsonProperty("appkey")
     public String getAppKey() {
       return appKey;
     }
@@ -146,7 +146,7 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
       columns = Lists.newArrayList("*");
     }
     String user = getAuthenticator().getUserName();
-    UPMAuthorizeRequest request = new UPMAuthorizeRequest(appKey, "sh_" + user, db, table, columns);
+    UPMAuthorizeRequest request = new UPMAuthorizeRequest(appKey, user, db, table, columns);
     ObjectMapper mapper = new ObjectMapper();
     mapper.configure(UNWRAP_ROOT_VALUE, true);
     String responseString = "";
