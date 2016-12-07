@@ -2874,27 +2874,47 @@ private void constructOneLBLocationMap(FileStatus fSta,
           }
         }
 
+        //comment it temporarily for the terrible performance and we do not use HDFS encryption now
         // Copy/move each file under the source directory to avoid to delete the destination
         // directory if it is the root of an HDFS encryption zone.
-        for (List<Path[]> sdpairs : result) {
-          for (Path[] sdpair : sdpairs) {
-            Path destParent = sdpair[1].getParent();
-            FileSystem destParentFs = destParent.getFileSystem(conf);
-            if (!destParentFs.isDirectory(destParent)) {
-              boolean success = destFs.mkdirs(destParent);
-              if (!success) {
-                LOG.warn("Error creating directory " + destParent);
-              }
-              if (inheritPerms && success) {
-                inheritFromTable(tablePath, destParent, conf, destFs);
-              }
-            }
-            if (!moveFile(conf, sdpair[0], sdpair[1], destFs, true, isSrcLocal)) {
-              throw new IOException("Unable to move file/directory from " + sdpair[0] +
-                  " to " + sdpair[1]);
-            }
-          }
+//        for (List<Path[]> sdpairs : result) {
+//          for (Path[] sdpair : sdpairs) {
+//            Path destParent = sdpair[1].getParent();
+//            FileSystem destParentFs = destParent.getFileSystem(conf);
+//            if (!destParentFs.isDirectory(destParent)) {
+//              boolean success = destFs.mkdirs(destParent);
+//              if (!success) {
+//                LOG.warn("Error creating directory " + destParent);
+//              }
+//              if (inheritPerms && success) {
+//                inheritFromTable(tablePath, destParent, conf, destFs);
+//              }
+//            }
+//            if (!moveFile(conf, sdpair[0], sdpair[1], destFs, true, isSrcLocal)) {
+//              throw new IOException("Unable to move file/directory from " + sdpair[0] +
+//                  " to " + sdpair[1]);
+//            }
+//          }
+//        }
+        HadoopShims shims = ShimLoader.getHadoopShims();
+        HadoopShims.HdfsFileStatus fullFileStatus = null;
+        
+        if (destFs.exists(destf)) {
+          fullFileStatus = shims.getFullFileStatus(conf, destFs, destf);
+          destFs.delete(destf, true);
+        } else {
+          fullFileStatus = shims.getFullFileStatus(conf, destFs, destfp);
         }
+
+        boolean b = destFs.rename(srcs[0].getPath(), destf);
+        if (!b) {
+          throw new HiveException("Unable to move results from " + srcs[0].getPath()
+              + " to destination directory: " + destf);
+        }
+        if (inheritPerms) {
+          shims.setFullFileStatus(conf, fullFileStatus, destFs, destf);
+        }
+        
       } else { // srcf is a file or pattern containing wildcards
         if (!destFs.exists(destf)) {
           boolean success = destFs.mkdirs(destf);
