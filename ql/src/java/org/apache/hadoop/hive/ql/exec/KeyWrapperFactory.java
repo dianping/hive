@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.exec;
 import java.util.Arrays;
 
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.serde2.lazy.LazyDouble;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectsEqualComparer;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
@@ -103,7 +104,7 @@ public class KeyWrapperFactory {
 
     @Override
     public void setHashKey() {
-      hashcode = Arrays.hashCode(keys);
+      hashcode = ObjectInspectorUtils.writableArrayHashCode(keys);
     }
 
     @Override
