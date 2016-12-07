@@ -63,11 +63,13 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
   public void authorize(Table table, Partition part, List<String> columns, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
     LOG.debug(String.format("UPM authorize user %s database %s table %s with columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
     // Only check authorization of inputs for read privilege
-    for (Privilege privilege : readRequiredPriv) {
-      // Found privileges need to authorize
-      if (privilege.getPriv() == PrivilegeType.ALL || privilege.getPriv() == PrivilegeType.SELECT) {
-        upmAuthorize(table.getDbName(), table.getTableName(), columns);
-        break;
+    if (readRequiredPriv != null && readRequiredPriv.length > 0) {
+      for (Privilege privilege : readRequiredPriv) {
+        // Found privileges need to authorize
+        if (privilege.getPriv() == PrivilegeType.ALL || privilege.getPriv() == PrivilegeType.SELECT) {
+          upmAuthorize(table.getDbName(), table.getTableName(), columns);
+          break;
+        }
       }
     }
   }
