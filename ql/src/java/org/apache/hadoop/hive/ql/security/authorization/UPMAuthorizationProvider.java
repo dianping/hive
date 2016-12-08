@@ -12,9 +12,9 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.util.StringUtils;
+import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.annotate.JsonRootName;
 
 import java.io.IOException;
 import java.util.List;
@@ -134,7 +134,6 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     }
   }
 
-  @JsonRootName("data")
   private static class UPMResponse {
     public boolean success;
     public List<String> tables;
@@ -150,12 +149,17 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     String user = getAuthenticator().getUserName();
     UPMAuthorizeRequest request = new UPMAuthorizeRequest(appKey, user, db, table, columns);
     ObjectMapper mapper = new ObjectMapper();
-    mapper.configure(UNWRAP_ROOT_VALUE, true);
     String responseString = "";
     try {
       responseString = postUPMService(mapper.writeValueAsString(request));
-      UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
-      authorizeSuccess = response.success;
+      JsonNode dataNode = mapper.readTree(responseString).get("data");
+      if (dataNode != null) {
+        responseString = dataNode.toString();
+        UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
+        authorizeSuccess = response.success;
+      } else {
+        authorizeSuccess = false;
+      }
     } catch (Exception e) {
       // Any exceptions meaning authorize failed, except upm post request related exceptions
       LOG.warn("UPMAuthorize failed, response " + responseString + ", exception " + e, e);
@@ -177,7 +181,7 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     method.addRequestHeader("Content-Type", "application/json");
     method.setRequestEntity(new StringRequestEntity(requestString));
 
-    // If post request failed, we assume authorize success, here'e the default response string meaing authorize success
+    // If post request failed, we assume authorize success, here'e the default response string meaning authorize success
     String responseString = "{\"data\": {\"success\": true, \"tables\": [], \"columns\": []}}";
     try {
       int statusCode = client.executeMethod(method);
@@ -197,11 +201,16 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     System.out.println("Hello World");
     UPMAuthorizeRequest request = new UPMAuthorizeRequest("a", "b", "c", "d", Lists.newArrayList("e"));
     ObjectMapper mapper = new ObjectMapper();
-    mapper.configure(UNWRAP_ROOT_VALUE, true);
     System.out.println("Request: " + mapper.writeValueAsString(request));
     String responseString = "{\"data\": {\"success\": true, \"tables\": [], \"columns\": []}}";
-    UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
-    System.out.println("Response: " + response + ", success " + response.success);
+    JsonNode dataNode = mapper.readTree(responseString).get("data");
+    if (dataNode != null) {
+      responseString = dataNode.toString();
+      UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
+      System.out.println("Response: " + response + ", success " + response.success);
+    } else {
+      System.out.println("Response: " + responseString);
+    }
   }
 }
 
