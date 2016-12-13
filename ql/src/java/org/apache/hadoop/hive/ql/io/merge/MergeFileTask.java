@@ -19,6 +19,8 @@
 package org.apache.hadoop.hive.ql.io.merge;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -97,6 +99,22 @@ public class MergeFileTask extends Task<MergeFileWork> implements Serializable,
       job.setOutputValueClass(NullWritable.class);
       job.setNumReduceTasks(0);
 
+      if (work.getMaxSplitSize() != null) {
+        HiveConf.setLongVar(job, HiveConf.ConfVars.MAPREDMAXSPLITSIZE, work.getMaxSplitSize().longValue());
+      }
+
+      if (work.getMinSplitSize() != null) {
+        HiveConf.setLongVar(job, HiveConf.ConfVars.MAPREDMINSPLITSIZE, work.getMinSplitSize().longValue());
+      }
+
+      if (work.getMinSplitSizePerNode() != null) {
+        HiveConf.setLongVar(job, HiveConf.ConfVars.MAPREDMINSPLITSIZEPERNODE, work.getMinSplitSizePerNode().longValue());
+      }
+
+      if (work.getMinSplitSizePerRack() != null) {
+        HiveConf.setLongVar(job, HiveConf.ConfVars.MAPREDMINSPLITSIZEPERRACK, work.getMinSplitSizePerRack().longValue());
+      }
+      
       // create the temp directories
       Path outputPath = work.getOutputDir();
       Path tempOutPath = Utilities.toTempPath(outputPath);
