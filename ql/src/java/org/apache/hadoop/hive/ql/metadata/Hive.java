@@ -2844,19 +2844,17 @@ private void constructOneLBLocationMap(FileStatus fSta,
       List<List<Path[]>> result = checkPaths(conf, destFs, srcs, srcFs, destf,
           true);
 
+      HadoopShims shims = ShimLoader.getHadoopShims();
+      HadoopShims.HdfsFileStatus fullFileStatus = null;
+      if (inheritPerms) {
+        fullFileStatus = shims.getFullFileStatus(conf, destFs, tablePath);
+      }
+      
       if (oldPath != null) {
         try {
           FileSystem fs2 = oldPath.getFileSystem(conf);
           if (fs2.exists(oldPath)) {
-            // Do not delete oldPath if:
-            //  - destf is subdir of oldPath
-            //if ( !(fs2.equals(destf.getFileSystem(conf)) && FileUtils.isSubDir(oldPath, destf, fs2)))
-            if (FileUtils.isSubDir(oldPath, destf, fs2)) {
-              FileUtils.trashFilesUnderDir(fs2, oldPath, conf);
-            }
-            if (inheritPerms) {
-              inheritFromTable(tablePath, destf, conf, destFs);
-            }
+            FileUtils.moveToTrash(fs2, oldPath, conf);
           }
         } catch (Exception e) {
           //swallow the exception
@@ -2900,15 +2898,6 @@ private void constructOneLBLocationMap(FileStatus fSta,
 //            }
 //          }
 //        }
-        HadoopShims shims = ShimLoader.getHadoopShims();
-        HadoopShims.HdfsFileStatus fullFileStatus = null;
-        
-        if (destFs.exists(destf)) {
-          fullFileStatus = shims.getFullFileStatus(conf, destFs, destf);
-          destFs.delete(destf, true);
-        } else {
-          fullFileStatus = shims.getFullFileStatus(conf, destFs, destfp);
-        }
 
         boolean b = destFs.rename(srcs[0].getPath(), destf);
         if (!b) {
