@@ -162,10 +162,14 @@ public class Hive {
 
   // register all permanent functions. need improvement
   static {
-    try {
-      reloadFunctions();
-    } catch (Exception e) {
-      LOG.warn("Failed to access metastore. This class should not accessed in runtime.",e);
+    SessionState session = SessionState.get();
+    HiveConf hconf = (session == null ? new HiveConf(Hive.class) : session.getConf());
+    if (hconf.getBoolVar(HiveConf.ConfVars.HIVE_LOAD_FUNCION_STARTUP)) {
+      try {
+        reloadFunctions();
+      } catch (Exception e) {
+        LOG.warn("Failed to access metastore. This class should not accessed in runtime.",e);
+      }
     }
   }
 

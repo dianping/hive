@@ -2172,6 +2172,8 @@ public class HiveConf extends Configuration {
       "Name of the SASL mechanism to use for authentication."),
     NWAYJOINREORDER("hive.reorder.nway.joins", true,
       "Runs reordering of tables within single n-way join (i.e.: picks streamtable)"),
+    HIVE_LOAD_FUNCION_STARTUP("hive.load.function.startup", true,
+        "load permanent funcion at startup"),
     HIVE_LOG_N_RECORDS("hive.log.every.n.records", 0L, new RangeValidator(0L, null),
       "If value is greater than 0 logs in fixed intervals of size n rather than exponentially.");
 
