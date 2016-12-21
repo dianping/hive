@@ -157,13 +157,10 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
         responseString = dataNode.toString();
         UPMResponse response = mapper.readValue(responseString, UPMResponse.class);
         authorizeSuccess = response.success;
-      } else {
-        authorizeSuccess = false;
       }
     } catch (Exception e) {
-      // Any exceptions meaning authorize failed, except upm post request related exceptions
-      LOG.warn("UPMAuthorize failed, response " + responseString + ", exception " + e, e);
-      authorizeSuccess = false;
+      // Any exceptions meaning authorize success
+      LOG.warn("UPMAuthorize exception, response " + responseString + ", exception " + e, e);
     }
 
     if (!authorizeSuccess) {
