@@ -14,6 +14,7 @@ import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.util.StringUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.IOException;
@@ -134,6 +135,7 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     }
   }
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   private static class UPMResponse {
     public boolean success;
     public List<String> tables;
@@ -199,7 +201,7 @@ public class UPMAuthorizationProvider extends HiveAuthorizationProviderBase {
     UPMAuthorizeRequest request = new UPMAuthorizeRequest("a", "b", "c", "d", Lists.newArrayList("e"));
     ObjectMapper mapper = new ObjectMapper();
     System.out.println("Request: " + mapper.writeValueAsString(request));
-    String responseString = "{\"data\": {\"success\": true, \"tables\": [], \"columns\": []}}";
+    String responseString = "{\"data\": {\"success\": true, \"tables\": [], \"columns\": [], \"datasource\":\"unknown\"}}";
     JsonNode dataNode = mapper.readTree(responseString).get("data");
     if (dataNode != null) {
       responseString = dataNode.toString();
