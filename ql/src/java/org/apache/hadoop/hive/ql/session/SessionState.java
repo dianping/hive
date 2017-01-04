@@ -83,7 +83,6 @@ import org.apache.hadoop.hive.shims.HadoopShims;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.shims.Utils;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Shell;
 
 import com.google.common.base.Preconditions;
@@ -207,8 +206,6 @@ public class SessionState {
    * Lineage state.
    */
   LineageState ls;
-
-  private PerfLogger perfLogger;
 
   private final String userName;
 
@@ -1520,19 +1517,14 @@ public class SessionState {
    * @return  Tries to return an instance of the class whose name is configured in
    *          hive.exec.perf.logger, but if it can't it just returns an instance of
    *          the base PerfLogger class
-
    */
-  public PerfLogger getPerfLogger(boolean resetPerfLogger) {
-    if ((perfLogger == null) || resetPerfLogger) {
-      try {
-        perfLogger = (PerfLogger) ReflectionUtils.newInstance(conf.getClassByName(
-            conf.getVar(ConfVars.HIVE_PERF_LOGGER)), conf);
-      } catch (ClassNotFoundException e) {
-        LOG.error("Performance Logger Class not found:" + e.getMessage());
-        perfLogger = new PerfLogger();
-      }
+  public static PerfLogger getPerfLogger(boolean resetPerfLogger) {
+    SessionState ss = get();
+    if (ss == null) {
+      return PerfLogger.getPerfLogger(null, resetPerfLogger);
+    } else {
+      return PerfLogger.getPerfLogger(ss.getConf(), resetPerfLogger);
     }
-    return perfLogger;
   }
 
   public TezSessionState getTezSession() {
