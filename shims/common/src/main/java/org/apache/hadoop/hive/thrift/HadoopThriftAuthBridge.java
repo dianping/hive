@@ -209,14 +209,22 @@ public class HadoopThriftAuthBridge {
               "Kerberos principal name does NOT have the expected hostname part: "
                   + serverPrincipal);
         }
+        UserGroupInformation cur_user = UserGroupInformation.getCurrentUser();
+        UserGroupInformation authorizedUgi = cur_user;
+        String authorizedId = null;
+        // If has real user, use real user for authentication and use proxy user for authorization
+        if (cur_user.getRealUser() != null) {
+          authorizedUgi = cur_user.getRealUser();
+          authorizedId = cur_user.getCurrentUser().getUserName();
+        }
         try {
           saslTransport = new TSaslClientTransport(
               method.getMechanismName(),
-              null,
+              authorizedId,
               names[0], names[1],
               saslProps, null,
               underlyingTransport);
-          return new TUGIAssumingTransport(saslTransport, UserGroupInformation.getCurrentUser());
+          return new TUGIAssumingTransport(saslTransport, authorizedUgi);
         } catch (SaslException se) {
           throw new IOException("Could not instantiate SASL transport", se);
         }
@@ -382,7 +390,7 @@ public class HadoopThriftAuthBridge {
           AuthMethod.KERBEROS.getMechanismName(),
           names[0], names[1],  // two parts of kerberos principal
           saslProps,
-          new SaslRpcServer.SaslGssCallbackHandler());
+          new ProxySaslGssCallbackHandler());
       transFactory.addServerDefinition(AuthMethod.DIGEST.getMechanismName(),
           null, SaslRpcServer.SASL_DEFAULT_REALM,
           saslProps, new SaslDigestCallbackHandler(secretManager));
@@ -545,6 +553,45 @@ public class HadoopThriftAuthBridge {
 
     public String getRemoteUser() {
       return remoteUser.get();
+    }
+
+    public static class ProxySaslGssCallbackHandler implements CallbackHandler {
+
+      @Override
+      public void handle(Callback[] callbacks) throws
+              UnsupportedCallbackException {
+        AuthorizeCallback ac = null;
+        for (Callback callback : callbacks) {
+          if (callback instanceof AuthorizeCallback) {
+            ac = (AuthorizeCallback) callback;
+          } else {
+            throw new UnsupportedCallbackException(callback,
+                    "Unrecognized SASL GSSAPI Callback");
+          }
+        }
+        if (ac != null) {
+          String authid = ac.getAuthenticationID();
+          String authzid = ac.getAuthorizationID();
+          if (authid.equals(authzid)) {
+            ac.setAuthorized(true);
+          } else {
+            UserGroupInformation ugi = UserGroupInformation.createProxyUser(authzid, UserGroupInformation.createRemoteUser(authid));
+            try {
+              ProxyUsers.authorize(ugi, "unknown", null);
+              ac.setAuthorized(true);
+            } catch (AuthorizationException ae) {
+              LOG.debug("SASL server GSSAPI callback: proxy user authorize failed with ugi " + ugi);
+              ac.setAuthorized(false);
+            }
+          }
+          if (ac.isAuthorized()) {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("SASL server GSSAPI callback: setting " + "canonicalized client ID: " + authid + ", " + authzid);
+            }
+          }
+          ac.setAuthorizedID(authzid);
+        }
+      }
     }
 
     /** CallbackHandler for SASL DIGEST-MD5 mechanism */
