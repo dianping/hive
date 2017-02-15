@@ -282,8 +282,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   //flag for partial scan during analyze ... compute statistics
   protected boolean partialscan;
 
-  protected boolean isAliasProcessed;
-
   protected volatile boolean disableJoinMerge = false;
 
   /*
@@ -341,7 +339,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     globalLimitCtx = new GlobalLimitCtx();
     viewAliasToInput = new HashMap<String, ReadEntity>();
     noscan = partialscan = false;
-    isAliasProcessed = false;
   }
 
   @Override
