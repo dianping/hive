@@ -282,6 +282,8 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   //flag for partial scan during analyze ... compute statistics
   protected boolean partialscan;
 
+  protected boolean isAliasProcessed;
+
   protected volatile boolean disableJoinMerge = false;
 
   /*
@@ -339,6 +341,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     globalLimitCtx = new GlobalLimitCtx();
     viewAliasToInput = new HashMap<String, ReadEntity>();
     noscan = partialscan = false;
+    isAliasProcessed = false;
   }
 
   @Override
@@ -10044,7 +10047,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     ctesExpanded = new ArrayList<String>();
 
     // 1. analyze and process the position alias
-    processPositionAlias(ast);
+    if (!isAliasProcessed) {
+      processPositionAlias(ast);
+      isAliasProcessed = true;
+    }
 
     // 2. analyze create table command
     if (ast.getToken().getType() == HiveParser.TOK_CREATETABLE) {
