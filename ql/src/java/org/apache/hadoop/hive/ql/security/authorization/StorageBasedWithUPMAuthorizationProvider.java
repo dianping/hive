@@ -45,32 +45,32 @@ public class StorageBasedWithUPMAuthorizationProvider extends StorageBasedAuthor
     @Override
     public void authorize(Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
         LOG.info(String.format("SBAWithUPM authorize user %s, skip UPM", authenticator.getUserName()));
-        super.authorize(new Privilege[]{}, writeRequiredPriv);
+        super.authorize(readRequiredPriv, writeRequiredPriv);
     }
 
     @Override
     public void authorize(Database db, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
         LOG.info(String.format("SBAWithUPM authorize user %s database %s, skip UPM", authenticator.getUserName(), db.getName()));
-        super.authorize(db, new Privilege[]{}, writeRequiredPriv);
+        super.authorize(db, readRequiredPriv, writeRequiredPriv);
     }
 
     @Override
     public void authorize(Table table, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
         LOG.info(String.format("SBAWithUPM authorize user %s database %s table %s without columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
-        super.authorize(table, new Privilege[]{}, writeRequiredPriv);
+        super.authorize(table, readRequiredPriv, writeRequiredPriv);
         authorize(table, new ArrayList<String>(), readRequiredPriv);
     }
 
     @Override
     public void authorize(Partition part, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
         LOG.info(String.format("SBAWithUPM authorize user %s table %s partition %s, skip UPM", authenticator.getUserName(), part.getTable(), part.getName()));
-        super.authorize(part, new Privilege[]{}, writeRequiredPriv);
+        super.authorize(part, readRequiredPriv, writeRequiredPriv);
     }
 
     @Override
     public void authorize(Table table, Partition part, List<String> columns, Privilege[] readRequiredPriv, Privilege[] writeRequiredPriv) throws HiveException, AuthorizationException {
         LOG.info(String.format("SBAWithUPM authorize user %s database %s table %s with columns", authenticator.getUserName(), table.getDbName(), table.getTableName()));
-        super.authorize(table, part, columns, new Privilege[]{}, writeRequiredPriv);
+        super.authorize(table, part, columns, readRequiredPriv, writeRequiredPriv);
         authorize(table, columns, readRequiredPriv);
     }
 
