@@ -845,7 +845,7 @@ public class MetaStoreUtils {
       org.apache.hadoop.hive.metastore.api.Partition partition,
       org.apache.hadoop.hive.metastore.api.Table table) {
     return MetaStoreUtils
-        .getSchema(partition.getSd(), partition.getSd(), partition
+        .getSchema(partition.getSd(), table.getSd(), partition
             .getParameters(), table.getDbName(), table.getTableName(),
             table.getPartitionKeys());
   }
