@@ -975,14 +975,39 @@ public class Hadoop23Shims extends HadoopShimsSecure {
   public void checkFileAccess(FileSystem fs, FileStatus stat, FsAction action)
       throws IOException, AccessControlException, Exception {
     try {
-      if (accessMethod == null) {
-        // Have to rely on Hive implementation of filesystem permission checks.
-        DefaultFileAccess.checkFileAccess(fs, stat, action);
-      } else {
-        accessMethod.invoke(fs, stat.getPath(), action);
-      }
+        // MTHDP-1203: Check path permission by Namenode
+        checkFileAccessByNN(fs, stat, action);
     } catch (Exception err) {
       throw wrapAccessException(err);
+    }
+  }
+
+  // MTHDP-1203: Check path permission by Namenode
+  // Path To Check: the dir path or the parent path of file
+  // Check read: list the check path
+  // Check write: create an file in check path and delete it
+  @SuppressWarnings("deprecation")
+  public static void checkFileAccessByNN(FileSystem fs, FileStatus stat, FsAction action)
+          throws IOException, AccessControlException {
+    Path pathToCheck = stat.getPath();
+    if (!stat.isDir()) {
+      pathToCheck = stat.getPath().getParent();
+    }
+    Path touchFile = new Path(pathToCheck, ".hive.sba.check");
+
+    try {
+      if (action.implies(FsAction.READ)) {
+        fs.listStatus(pathToCheck);
+      }
+      if (action.implies(FsAction.WRITE)) {
+        fs.create(touchFile).close();
+      }
+    } catch (org.apache.hadoop.security.AccessControlException ace) {
+      throw new AccessControlException(ace.getMessage());
+    } finally {
+      try {
+        fs.delete(touchFile, true);
+      } catch (Exception e) {}
     }
   }
 
