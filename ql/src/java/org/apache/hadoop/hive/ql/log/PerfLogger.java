@@ -26,8 +26,11 @@ import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.util.ReflectionUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * PerfLogger.
@@ -206,6 +209,21 @@ public class PerfLogger {
       duration = endTimes.get(method) - startTimes.get(method);
     }
     return duration;
+  }
+  
+  public Map<String, List<Long>> getStatistics(){
+      Map<String, List<Long>> stats = new HashMap<String, List<Long>>();
+      for(Entry<String, Long> e : startTimes.entrySet()){
+          String method = e.getKey();
+          Long start = e.getValue();
+          Long end = endTimes.get(method);
+          List<Long> times = new ArrayList<Long>();
+          times.add(start);
+          if(end != null)
+              times.add(end);
+          stats.put(method, times);
+      }
+      return stats;
   }
 
 }

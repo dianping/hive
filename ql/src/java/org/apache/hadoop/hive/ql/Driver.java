@@ -105,6 +105,7 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessor;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils;
 import org.apache.hadoop.hive.ql.security.authorization.HiveAuthorizationProvider;
+import org.apache.hadoop.hive.ql.security.authorization.Privilege;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveAuthzContext;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveOperationType;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject;
@@ -562,7 +563,7 @@ public class Driver implements CommandProcessor {
     SessionState ss = SessionState.get();
     HiveOperation op = ss.getHiveOperation();
     Hive db = sem.getDb();
-
+    
     if (ss.isAuthorizationModeV2()) {
       // get mapping of tables to columns used
       ColumnAccessInfo colAccessInfo = sem.getColumnAccessInfo();
@@ -583,9 +584,9 @@ public class Driver implements CommandProcessor {
           op.getInputRequiredPrivileges(), op.getOutputRequiredPrivileges());
     } else if (op.equals(HiveOperation.CREATETABLE_AS_SELECT)
         || op.equals(HiveOperation.CREATETABLE)) {
-      authorizer.authorize(
-          db.getDatabase(SessionState.get().getCurrentDatabase()), null,
-          HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
+//      authorizer.authorize(
+//          db.getDatabase(SessionState.get().getCurrentDatabase()), null,
+//          HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
     } else {
       if (op.equals(HiveOperation.IMPORT)) {
         ImportSemanticAnalyzer isa = (ImportSemanticAnalyzer) sem;
@@ -1425,6 +1426,7 @@ public class Driver implements CommandProcessor {
         Task<? extends Serializable> tsk = tskRun.getTask();
         TaskResult result = tskRun.getTaskResult();
 
+        perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.TASK + tsk.getName() + "." + tsk.getId());
         int exitVal = result.getExitVal();
         if (exitVal != 0) {
           if (tsk.ifRetryCmdWhenFail()) {
