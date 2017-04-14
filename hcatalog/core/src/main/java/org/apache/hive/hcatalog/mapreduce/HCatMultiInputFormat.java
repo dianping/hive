@@ -73,6 +73,14 @@ public class HCatMultiInputFormat extends HCatBaseInputFormat {
         }
         return allCols;
     }
+    
+    public static HCatSchema getTableSchema(JobContext context, String tableName) throws IOException {
+        InputJobInfo inputJobInfo = getInputJobInfo(context.getConfiguration(), tableName);
+        if (inputJobInfo == null) {
+            throw new IOException("no job information found for table " + tableName);
+        }
+        return getTableSchema(inputJobInfo);
+    }
 
     private static List<InputJobInfo> getJobInfoList(Configuration conf) throws IOException {
         String jobListString = conf.get(HCatConstants.HCAT_KEY_MULTI_INPUT_JOBS_INFO);
